@@ -1,1 +1,1 @@
-# mgmt655
+# MGMT 655 - Business Analytics
