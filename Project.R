@@ -9,6 +9,11 @@ pacman::p_load(tidyverse, lubridate,
                shiny, shinydashboard
                )
 
+# Download dataset
+# https://www.kaggle.com/datasets/prasertk/cities-with-the-best-worklife-balance-2022
+
+# Set dir path
+
 # Load dataset
 
 # Actual work
