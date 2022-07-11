@@ -18,70 +18,118 @@ input_data %>% group_by(Country) %>%
   summarise(count = n()) %>%
   arrange(desc(count))
 
+skim(input_data)
+view(input_data)
+
 input_data_with_row_id <- 
   input_data %>% 
   as_tibble() %>%
   rowid_to_column()
 
-# New object showing change in city rank
+view(input_data_with_row_id)
+
+# Convert 2021 to numeric and create a new column called delta
 city_rank_delta <- input_data_with_row_id %>% 
   select(City, `2021`, `2022`) %>% 
-  # Filter missing cells
   filter(`2021` != "-") %>% 
-  # Convert 2021 column to numeric
   mutate(`2021` = as.numeric(`2021`)) %>%
-  # Calculate change in rank from 2021 to 2022
   mutate(delta = `2021` - `2022`) %>%
-  # Arrange in descending order
   arrange(desc(delta))
 
-# Diverging bar plot of city rank delta
-city_rank_delta_plot <- 
-  ggplot(data = city_rank_delta,
-       aes(x = reorder(City, delta), y = delta)) +
-  geom_bar(stat = "identity") + 
-  geom_bar(data = subset(city_rank_delta, delta > 0),
-           aes(`City`, delta),
-           fill = "chartreuse3",
-           stat = "identity") +
-  geom_bar(data = subset(city_rank_delta, delta < 0),
-           aes(`City`, delta),
-           fill = "tomato",
-           stat = "identity") +
-  scale_y_continuous(breaks = seq(-58, 10, by = 2)) +
-  labs(title = "Changes in Work/Life Balance Rank from 2021 to 2022",
-       subtitle = "This shows the delta change of a city's ranking") +
-  geom_text(aes(label = City),
-            vjust = 0.5,
-            hjust = -0.1,
-            size = 3) +
-  coord_flip() +
-  theme_fivethirtyeight() +
-  theme(axis.text.y = element_blank())
+ggplot(data = city_rank_delta,
+       aes(y = City, x = delta)) +
+  geom_bar(stat = 'identity') +
+  scale_fill_manual(name = "Test", 
+                    labels = c("Above Average", "Below Average")) + 
+  labs(subtitle="Normalised mileage from 'mtcars'", 
+       title= "City Delta") +
+  theme_fivethirtyeight()
+  #geom_bar(orientation = "y", stat = "identity") +
 
-city_rank_delta_plot
+# ggplot(mtcars, aes(x=`car name`, y=mpg_z, label=mpg_z)) + 
+#   geom_bar(stat='identity', aes(fill=mpg_type), width=.5)  +
+#   scale_fill_manual(name="Mileage", 
+#                     labels = c("Above Average", "Below Average"), 
+#                     values = c("above"="#00ba38", "below"="#f8766d")) + 
+#   labs(subtitle="Normalised mileage from 'mtcars'", 
+#        title= "Diverging Bars") + 
+#   coord_flip()
+# Make this red and green
 
-# Create function to convert % numbers into decimal
+# Actual work
+
+# Create convert to % function
 convert_to_percentage <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
 }
 
-#try something
+#clean up the data
+
+# Replace '-' in Vacation days with NA
 input_data_with_row_id$`Vacations Taken (Days)` <- 
   input_data_with_row_id$`Vacations Taken (Days)` %>% na_if("-")
   
+# convert vacation days from character to double
 after_vacations <- input_data_with_row_id %>% 
   mutate(`Vacations Taken (Days)`= as.double(`Vacations Taken (Days)`))
 
-after_percentages <- after_vacations %>% 
+# convert all other percentage characters to numeric values
+cleaned_data <- after_vacations %>% 
   mutate(across(c(`Inflation`, 
                   `Overworked Population`,
                   `Remote Jobs`,
                   `Multiple Jobholders`
                   ), 
-                  convert_to_percentage))
+                  convert_to_percentage)) %>%
+  na.omit()
 
-skim(after_percentages)
+#THE DATA IS NOW CLEEEEEAAAANNNN
+skim(cleaned_data)
 
+a <- cleaned_data %>% select(-City, -`2021`, -Country)
+
+# THE REAL SHIZZ STARTS NOW ----
+## Recipe ----
+recipe_score <- 
+  recipe(formula = `TOTAL SCORE`~ .,
+         data = a) %>% 
+  step_rm(rowid) %>% 
+  step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
+
+## Baking ----
+baked_score <- 
+  recipe_score %>% # plan 
+  prep() %>% # for calculation
+  bake(new_data = a) 
+
+#correlation
+baked_score %>% 
+  as.matrix(.) %>%
+  rcorr(.) %>%
+  tidy(.) %>%
+  rename(var1 = column1,
+         var2 = column2,
+         CORR = estimate) %>%
+  mutate(absCORR = abs(CORR)) %>%
+  filter(var1 == "TOTAL SCORE" | var2 == "TOTAL SCORE") %>%
+  DT::datatable()  
+
+
+a %>% 
+  ggplot(aes(x = `Inclusivity & Tolerance`, y = `TOTAL SCORE`)) +
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
 
 # Results??
