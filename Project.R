@@ -36,29 +36,34 @@ city_rank_delta <- input_data_with_row_id %>%
   mutate(delta = `2021` - `2022`) %>%
   arrange(desc(delta))
 
-ggplot(data = city_rank_delta,
-       aes(y = City, x = delta)) +
-  geom_bar(stat = 'identity') +
-  scale_fill_manual(name = "Test", 
-                    labels = c("Above Average", "Below Average")) + 
-  labs(subtitle="Normalised mileage from 'mtcars'", 
-       title= "City Delta") +
-  theme_fivethirtyeight()
-  #geom_bar(orientation = "y", stat = "identity") +
-
-# ggplot(mtcars, aes(x=`car name`, y=mpg_z, label=mpg_z)) + 
-#   geom_bar(stat='identity', aes(fill=mpg_type), width=.5)  +
-#   scale_fill_manual(name="Mileage", 
-#                     labels = c("Above Average", "Below Average"), 
-#                     values = c("above"="#00ba38", "below"="#f8766d")) + 
-#   labs(subtitle="Normalised mileage from 'mtcars'", 
-#        title= "Diverging Bars") + 
-#   coord_flip()
-# Make this red and green
-
 # Actual work
 
 # Create convert to % function
+# Diverging bar plot of city rank delta
+city_rank_delta_plot <- 
+  ggplot(data = city_rank_delta,
+       aes(x = reorder(City, delta), y = delta)) +
+  geom_bar(stat = "identity") + 
+  geom_bar(data = subset(city_rank_delta, delta > 0),
+           aes(`City`, delta),
+           fill = "chartreuse3",
+           stat = "identity") +
+  geom_bar(data = subset(city_rank_delta, delta < 0),
+           aes(`City`, delta),
+           fill = "tomato",
+           stat = "identity") +
+  scale_y_continuous(breaks = seq(-58, 10, by = 2)) +
+  labs(title = "Changes in Work/Life Balance Rank from 2021 to 2022",
+       subtitle = "This shows the delta change of a city's ranking") +
+  geom_text(aes(label = City),
+            vjust = 0.5,
+            hjust = -0.1,
+            size = 3) +
+  coord_flip() +
+  theme_fivethirtyeight() +
+  theme(axis.text.y = element_blank())
+
+# Create function to convert % numbers into decimal
 convert_to_percentage <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
 }
@@ -113,7 +118,6 @@ baked_score %>%
   mutate(absCORR = abs(CORR)) %>%
   filter(var1 == "TOTAL SCORE" | var2 == "TOTAL SCORE") %>%
   DT::datatable()  
-
 
 a %>% 
   ggplot(aes(x = `Inclusivity & Tolerance`, y = `TOTAL SCORE`)) +
