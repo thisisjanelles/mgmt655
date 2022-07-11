@@ -48,8 +48,9 @@ city_rank_delta_plot <-
            aes(`City`, delta),
            fill = "tomato",
            stat = "identity") +
+  scale_y_continuous(breaks = seq(-58, 10, by = 2)) +
   labs(title = "Changes in Work/Life Balance Rank from 2021 to 2022",
-       subtitle = "") +
+       subtitle = "This shows the delta change of a city's ranking") +
   geom_text(aes(label = City),
             vjust = 0.5,
             hjust = -0.1,
@@ -60,9 +61,7 @@ city_rank_delta_plot <-
 
 city_rank_delta_plot
 
-# Actual work
-
-# Create convert to % function
+# Create function to convert % numbers into decimal
 convert_to_percentage <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
 }
