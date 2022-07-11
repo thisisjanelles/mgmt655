@@ -18,56 +18,47 @@ input_data %>% group_by(Country) %>%
   summarise(count = n()) %>%
   arrange(desc(count))
 
-skim(input_data)
-view(input_data)
-
 input_data_with_row_id <- 
   input_data %>% 
   as_tibble() %>%
   rowid_to_column()
 
-view(input_data_with_row_id)
-
-# Convert 2021 to numeric and create a new column called delta
+# New object showing change in city rank
 city_rank_delta <- input_data_with_row_id %>% 
   select(City, `2021`, `2022`) %>% 
+  # Filter missing cells
   filter(`2021` != "-") %>% 
+  # Convert 2021 column to numeric
   mutate(`2021` = as.numeric(`2021`)) %>%
+  # Calculate change in rank from 2021 to 2022
   mutate(delta = `2021` - `2022`) %>%
+  # Arrange in descending order
   arrange(desc(delta))
 
-view(city_rank_delta)
-skim(city_rank_delta)
-
-ggplot(data = city_rank_delta,
-       aes(x = reorder(City, delta), y = delta),
-       fill = city_rank_delta$delta > 0) +
-  geom_bar(stat = 'identity') + 
+# Diverging bar plot of city rank delta
+city_rank_delta_plot <- 
+  ggplot(data = city_rank_delta,
+       aes(x = reorder(City, delta), y = delta)) +
+  geom_bar(stat = "identity") + 
   geom_bar(data = subset(city_rank_delta, delta > 0),
            aes(`City`, delta),
-           fill = "green",
+           fill = "chartreuse3",
            stat = "identity") +
   geom_bar(data = subset(city_rank_delta, delta < 0),
            aes(`City`, delta),
-           fill = "red",
+           fill = "tomato",
            stat = "identity") +
-  labs(title = "City Delta",
-       subtitle = "Changes in Work/Life Balance Rank") +
+  labs(title = "Changes in Work/Life Balance Rank from 2021 to 2022",
+       subtitle = "") +
+  geom_text(aes(label = City),
+            vjust = 0.5,
+            hjust = -0.1,
+            size = 3) +
   coord_flip() +
   theme_fivethirtyeight() +
-  scale_fill_manual(values = c("red","blue"))
+  theme(axis.text.y = element_blank())
 
-  #geom_bar(orientation = "y", stat = "identity") +
-
-# ggplot(mtcars, aes(x=`car name`, y=mpg_z, label=mpg_z)) + 
-#   geom_bar(stat='identity', aes(fill=mpg_type), width=.5)  +
-#   scale_fill_manual(name="Mileage", 
-#                     labels = c("Above Average", "Below Average"), 
-#                     values = c("above"="#00ba38", "below"="#f8766d")) + 
-#   labs(subtitle="Normalised mileage from 'mtcars'", 
-#        title= "Diverging Bars") + 
-#   coord_flip()
-# Make this red and green
+city_rank_delta_plot
 
 # Actual work
 
