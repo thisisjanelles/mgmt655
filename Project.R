@@ -59,8 +59,6 @@ city_rank_delta_plot <-
   theme_fivethirtyeight() +
   theme(axis.text.y = element_blank())
 
-city_rank_delta_plot
-
 # Create function to convert % numbers into decimal
 convert_to_percentage <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
