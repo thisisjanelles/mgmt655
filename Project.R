@@ -63,9 +63,18 @@ convert_to_percentage <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
 }
 
-a <- input_data_with_row_id %>% 
+#try something
+input_data_with_row_id$`Vacations Taken (Days)` <- 
+  input_data_with_row_id$`Vacations Taken (Days)` %>% na_if("-")
+  
+after_vacations <- input_data_with_row_id %>% 
+  mutate(`Vacations Taken (Days)`= as.double(`Vacations Taken (Days)`))
+
+after_percentages <- input_data_with_row_id %>% 
   mutate(across(c(`Inflation`, 
-                  `Overworked Population`), 
+                  `Overworked Population`
+                  ), 
                   convert_to_percentage))
+
 
 # Results??
