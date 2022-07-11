@@ -19,6 +19,22 @@ input_data %>% group_by(Country) %>%
   arrange(desc(count))
 
 skim(input_data)
+view(input_data)
+
+test_var <- 
+  input_data %>% 
+  as_tibble() %>%
+  rowid_to_column()
+
+row.names(test_var) <- test_var$rowid
+
+view(test_var)
+
+# Convert 2021 to numeric
+test_var %>% 
+  select(., City, `2021`, `2022`) %>% 
+  filter(., `2021` != "-") %>% 
+  mutate(`2021` = as.numeric(`2021`))
 
 # Set dir path
 
