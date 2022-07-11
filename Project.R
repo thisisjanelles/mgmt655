@@ -6,7 +6,7 @@ pacman::p_load(tidyverse, lubridate,
                DT, plotly,
                ggthemes, scales, ggthemr, ggfortify, ggstance, ggalt,
                broom, modelr,
-               shiny, shinydashboard, forcats
+               shiny, shinydashboard
                )
 # Download dataset
 # https://www.kaggle.com/datasets/prasertk/cities-with-the-best-worklife-balance-2022
@@ -36,27 +36,14 @@ city_rank_delta <- input_data_with_row_id %>%
   mutate(delta = `2021` - `2022`) %>%
   arrange(desc(delta))
 
-view(city_rank_delta)
-skim(city_rank_delta)
-
 ggplot(data = city_rank_delta,
-       aes(x = reorder(City, delta), y = delta),
-       fill = city_rank_delta$delta > 0) +
-  geom_bar(stat = 'identity') + 
-  geom_bar(data = subset(city_rank_delta, delta > 0),
-           aes(`City`, delta),
-           fill = "green",
-           stat = "identity") +
-  geom_bar(data = subset(city_rank_delta, delta < 0),
-           aes(`City`, delta),
-           fill = "red",
-           stat = "identity") +
-  labs(title = "City Delta",
-       subtitle = "Changes in Work/Life Balance Rank") +
-  coord_flip() +
-  theme_fivethirtyeight() +
-  scale_fill_manual(values = c("red","blue"))
-
+       aes(y = City, x = delta)) +
+  geom_bar(stat = 'identity') +
+  scale_fill_manual(name = "Test", 
+                    labels = c("Above Average", "Below Average")) + 
+  labs(subtitle="Normalised mileage from 'mtcars'", 
+       title= "City Delta") +
+  theme_fivethirtyeight()
   #geom_bar(orientation = "y", stat = "identity") +
 
 # ggplot(mtcars, aes(x=`car name`, y=mpg_z, label=mpg_z)) + 
@@ -83,11 +70,15 @@ input_data_with_row_id$`Vacations Taken (Days)` <-
 after_vacations <- input_data_with_row_id %>% 
   mutate(`Vacations Taken (Days)`= as.double(`Vacations Taken (Days)`))
 
-after_percentages <- input_data_with_row_id %>% 
+after_percentages <- after_vacations %>% 
   mutate(across(c(`Inflation`, 
-                  `Overworked Population`
+                  `Overworked Population`,
+                  `Remote Jobs`,
+                  `Multiple Jobholders`
                   ), 
                   convert_to_percentage))
+
+skim(after_percentages)
 
 
 # Results??
