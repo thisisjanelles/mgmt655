@@ -56,10 +56,16 @@ ggplot(data = city_rank_delta,
 #   coord_flip()
 # Make this red and green
 
-# Set dir path
-
-# Load dataset
-
 # Actual work
+
+# Create convert to % function
+convert_to_percentage <- function(column_name) {
+  as.numeric(sub("%", "", column_name)) / 100
+}
+
+a <- input_data_with_row_id %>% 
+  mutate(across(c(`Inflation`, 
+                  `Overworked Population`), 
+                  convert_to_percentage))
 
 # Results??
