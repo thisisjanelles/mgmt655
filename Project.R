@@ -21,20 +21,26 @@ input_data %>% group_by(Country) %>%
 skim(input_data)
 view(input_data)
 
-test_var <- 
+input_data_with_row_id <- 
   input_data %>% 
   as_tibble() %>%
   rowid_to_column()
 
-row.names(test_var) <- test_var$rowid
+view(input_data_with_row_id)
 
-view(test_var)
+# Convert 2021 to numeric and create a new column called delta
+city_rank_delta <- input_data_with_row_id %>% 
+  select(City, `2021`, `2022`) %>% 
+  filter(`2021` != "-") %>% 
+  mutate(`2021` = as.numeric(`2021`)) %>%
+  mutate(delta = `2021` - `2022`) %>%
+  arrange(desc(delta))
 
-# Convert 2021 to numeric
-test_var %>% 
-  select(., City, `2021`, `2022`) %>% 
-  filter(., `2021` != "-") %>% 
-  mutate(`2021` = as.numeric(`2021`))
+ggplot(data = city_rank_delta,
+       aes(y = City, x = delta)) +
+  geom_bar(orientation = "y", stat = "identity") +
+  theme_bw()
+# Make this red and green
 
 # Set dir path
 
