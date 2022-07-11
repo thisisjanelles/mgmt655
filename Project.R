@@ -35,7 +35,6 @@ city_rank_delta <- input_data_with_row_id %>%
   # Arrange in descending order
   arrange(desc(delta))
 
-<<<<<<< HEAD
 # Diverging bar plot of city rank delta
 city_rank_delta_plot <- 
   ggplot(data = city_rank_delta,
@@ -59,27 +58,6 @@ city_rank_delta_plot <-
   coord_flip() +
   theme_fivethirtyeight() +
   theme(axis.text.y = element_blank())
-=======
-ggplot(data = city_rank_delta,
-       aes(y = City, x = delta)) +
-  geom_bar(stat = 'identity') +
-  scale_fill_manual(name = "Test", 
-                    labels = c("Above Average", "Below Average")) + 
-  labs(subtitle="Normalised mileage from 'mtcars'", 
-       title= "City Delta") +
-  theme_fivethirtyeight()
-  #geom_bar(orientation = "y", stat = "identity") +
-
-# ggplot(mtcars, aes(x=`car name`, y=mpg_z, label=mpg_z)) + 
-#   geom_bar(stat='identity', aes(fill=mpg_type), width=.5)  +
-#   scale_fill_manual(name="Mileage", 
-#                     labels = c("Above Average", "Below Average"), 
-#                     values = c("above"="#00ba38", "below"="#f8766d")) + 
-#   labs(subtitle="Normalised mileage from 'mtcars'", 
-#        title= "Diverging Bars") + 
-#   coord_flip()
-# Make this red and green
->>>>>>> 0c549bf181edfe578c45bc6484e0b6615f7e114f
 
 city_rank_delta_plot
 
