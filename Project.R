@@ -35,8 +35,6 @@ city_rank_delta <- input_data_with_row_id %>%
   mutate(delta = `2021` - `2022`) %>%
   arrange(desc(delta))
 
-# Actual work
-
 # Create convert to % function
 # Diverging bar plot of city rank delta
 city_rank_delta_plot <- 
@@ -63,28 +61,36 @@ city_rank_delta_plot <-
   theme(axis.text.y = element_blank())
 
 # Create function to convert % numbers into decimal
-convert_to_percentage <- function(column_name) {
+convert_to_decimal <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
 }
 
-#clean up the data
+# Notes from 7/12:
+# City Country Rank - can be dropped - interdependent
+# Missing variables - can you impute? e.g. if city is missing
+# create 2 recipes : 1 with variable, 1 without
+# if you can't impute - might want to use 97 for both
+# dashboard sliders: let decision makers what to look at - which features are important
+# set dashboard defaults for non-important features - select or slider input
+# decision aids
+# importance - deployed based on feature importance - high correlation with magnitude abscorrelation
 
-# Replace '-' in Vacation days with NA
+# Replace '-' cells in Vacation days with NA
 input_data_with_row_id$`Vacations Taken (Days)` <- 
   input_data_with_row_id$`Vacations Taken (Days)` %>% na_if("-")
   
-# convert vacation days from character to double
+# Convert Vacation days from chr to dbl
 after_vacations <- input_data_with_row_id %>% 
   mutate(`Vacations Taken (Days)`= as.double(`Vacations Taken (Days)`))
 
-# convert all other percentage characters to numeric values
+# Convert all other percentage characters to numeric values
 cleaned_data <- after_vacations %>% 
   mutate(across(c(`Inflation`, 
                   `Overworked Population`,
                   `Remote Jobs`,
                   `Multiple Jobholders`
                   ), 
-                  convert_to_percentage)) %>%
+                  convert_to_decimal)) %>%
   na.omit()
 
 #THE DATA IS NOW CLEEEEEAAAANNNN
@@ -106,7 +112,7 @@ baked_score <-
   prep() %>% # for calculation
   bake(cleaned_data) 
 
-#correlation
+# Correlation ----
 baked_score %>% 
   as.matrix(.) %>%
   rcorr(.) %>%
