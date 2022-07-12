@@ -90,13 +90,13 @@ cleaned_data <- after_vacations %>%
 #THE DATA IS NOW CLEEEEEAAAANNNN
 skim(cleaned_data)
 
-a <- cleaned_data %>% select(-City, -`2021`, -Country)
+cleaned_data <- cleaned_data %>% select(-City, -`2021`, -Country)
 
 # THE REAL SHIZZ STARTS NOW ----
 ## Recipe ----
 recipe_score <- 
   recipe(formula = `TOTAL SCORE`~ .,
-         data = a) %>% 
+         data = cleaned_data) %>% 
   step_rm(rowid) %>% 
   step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
 
@@ -104,7 +104,7 @@ recipe_score <-
 baked_score <- 
   recipe_score %>% # plan 
   prep() %>% # for calculation
-  bake(new_data = a) 
+  bake(cleaned_data) 
 
 #correlation
 baked_score %>% 
@@ -118,7 +118,7 @@ baked_score %>%
   filter(var1 == "TOTAL SCORE" | var2 == "TOTAL SCORE") %>%
   DT::datatable()  
 
-a %>% 
+cleaned_data %>% 
   ggplot(aes(x = `Inclusivity & Tolerance`, y = `TOTAL SCORE`)) +
   geom_point(color = "dodgerblue",
              alpha = 0.3) +
@@ -134,5 +134,111 @@ a %>%
               formula = y ~ poly(x, degree = 2),
               color = "tomato3") +
   theme_bw()
+
+# Random forest
+
+set.seed(22062801)
+
+data_split <- 
+  cleaned_data %>% 
+  initial_split(prop = 0.80)
+
+data_split
+
+## Executing
+
+data_train <- # training(rent_split)
+  data_split %>% 
+  training() # 80%
+
+data_test <- 
+  data_split %>% 
+  testing() # 20%
+
+## Random Forest ----
+
+rf_model <- 
+  rand_forest() %>%
+  set_args(trees = 1000, mtry = tune(), min_n = tune()) %>%
+  set_engine("ranger",
+             importance = "permutation") %>% 
+  set_mode("regression")
+
+workflow_rf <-
+  workflow() %>% 
+  add_recipe(recipe_score) %>% 
+  add_model(rf_model)
+
+
+set.seed(22062802)
+
+CV <- 
+  data_train %>% 
+  vfold_cv(v = 10)
+
+CV
+
+doParallel::registerDoParallel()
+
+tuned_RF <-
+  workflow_rf %>% 
+  tune_grid(resamples = CV,
+            grid = 3:10)
+
+parameters_tuned_RF <- 
+  tuned_RF %>% 
+  select_best(metric = "rmse")
+
+## finalize_workflow()
+
+finalized_workflow_RF <-
+  workflow_rf %>% 
+  finalize_workflow(parameters_tuned_RF)
+
+fit_rf <-
+  finalized_workflow_RF %>% 
+  last_fit(data_split)
+
+performance_rf <- 
+  fit_rf %>% 
+  collect_metrics() %>% 
+  mutate(algo = "Random Forest")
+
+performance_rf
+
+prediction_rf <- 
+  fit_rf %>% 
+  collect_predictions()
+
+prediction_rf
+
+cleaned_data <- 
+  cleaned_data %>% 
+  tibble::rowid_to_column("ID")
+
+data_with_predictions <-
+  cleaned_data %>% 
+  inner_join(prediction_rf,
+             by = ID)
+
+for_your_plotly <- 
+  prediction_rf %>% 
+  select(.row, `TOTAL SCORE`, .pred)
+
+plotly_object <- 
+  for_your_plotly %>% 
+  ggplot(aes(x = `TOTAL SCORE`,
+             y =.pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted score of city",
+       x = "Actual score of city",
+       title = "Predicting city work-life balance score") + 
+  theme_bw()
+
+ggplotly(plotly_object)
 
 # Results??
