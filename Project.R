@@ -1,4 +1,4 @@
-# Packages ----
+# Install Packages ----
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
                skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
@@ -8,10 +8,9 @@ pacman::p_load(tidyverse, lubridate,
                broom, modelr,
                shiny, shinydashboard
                )
-# Download dataset
-# https://www.kaggle.com/datasets/prasertk/cities-with-the-best-worklife-balance-2022
+# Source data - https://www.kaggle.com/datasets/prasertk/cities-with-the-best-worklife-balance-2022
 
-# Read dataset ----
+# Read Dataset ----
 input_data <- read_csv("input_dataset.csv")
 
 input_data %>% group_by(Country) %>%
