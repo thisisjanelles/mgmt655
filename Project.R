@@ -1,4 +1,7 @@
 # Install Packages ----
+
+devtools::install_github("https://github.com/Mikata-Project/ggthemr.git")
+
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
                skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
@@ -8,13 +11,6 @@ pacman::p_load(tidyverse, lubridate,
                broom, modelr,
                shiny, shinydashboard
                )
-<<<<<<< HEAD
-
-# Download dataset
-# https://www.kaggle.com/datasets/prasertk/cities-with-the-best-worklife-balance-2022
-=======
-# Source data - https://www.kaggle.com/datasets/prasertk/cities-with-the-best-worklife-balance-2022
->>>>>>> cd1977ba3064f64a904e1772f0e7ee076bfb76bc
 
 # Read Dataset ----
 input_data <- read_csv("input_dataset.csv")
@@ -41,18 +37,15 @@ city_rank_delta <- input_data_with_row_id %>%
   mutate(delta = `2021` - `2022`) %>%
   arrange(desc(delta))
 
-<<<<<<< HEAD
 city_rank_delta
 
 # Actual work
 
-=======
->>>>>>> cd1977ba3064f64a904e1772f0e7ee076bfb76bc
 # Create convert to % function
 # Diverging bar plot of city rank delta
 city_rank_delta_plot <- 
   ggplot(data = city_rank_delta,
-       aes(x = reorder(City, delta), y = delta)) +
+       aes(x = reorder(`City`, delta), y = delta)) +
   geom_bar(stat = "identity") + 
   geom_bar(data = subset(city_rank_delta, delta > 0),
            aes(`City`, delta),
@@ -76,7 +69,7 @@ city_rank_delta_plot <-
 city_rank_delta_plot
 
 # Create function to convert % numbers into decimal
-convert_to_decimal <- function(column_name) {
+convert_to_percentage <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
 }
 
@@ -93,10 +86,14 @@ convert_to_decimal <- function(column_name) {
 # Replace '-' cells in Vacation days with NA
 input_data_with_row_id$`Vacations Taken (Days)` <- 
   input_data_with_row_id$`Vacations Taken (Days)` %>% na_if("-")
-  
+
+skim(input_data_with_row_id)
+
 # Convert Vacation days from chr to dbl
 after_vacations <- input_data_with_row_id %>% 
   mutate(`Vacations Taken (Days)`= as.double(`Vacations Taken (Days)`))
+
+skim(after_vacations)
 
 # Convert all other percentage characters to numeric values
 cleaned_data <- after_vacations %>% 
@@ -105,13 +102,9 @@ cleaned_data <- after_vacations %>%
                   `Remote Jobs`,
                   `Multiple Jobholders`
                   ), 
-<<<<<<< HEAD
-                  convert_to_percentage)) # %>% try without getting rid of the NAs
-  # na.omit()
-=======
-                  convert_to_decimal)) %>%
-  na.omit()
->>>>>>> cd1977ba3064f64a904e1772f0e7ee076bfb76bc
+                  convert_to_percentage)
+         )  # %>% try without getting rid of the NAs
+ # na.omit()
 
 #THE DATA IS NOW CLEEEEEAAAANNNN
 skim(cleaned_data)
@@ -148,9 +141,6 @@ baked_score <-
   prep() %>% # for calculation
   bake(cleaned_data) 
 
-<<<<<<< HEAD
-baked_score
-
 ## Baking for rank ----
 baked_rank <-
   recipe_rank %>%
@@ -162,9 +152,7 @@ baked_rank
 # CORRELATION ----
 
 ## Correlation for score ----
-=======
-# Correlation ----
->>>>>>> cd1977ba3064f64a904e1772f0e7ee076bfb76bc
+
 baked_score %>% 
   as.matrix(.) %>%
   rcorr(.) %>%
@@ -300,7 +288,7 @@ set.seed(22201701)
 cv_xg_score <- 
   data_train %>% 
   vfold_cv(v = 10,
-           strata = `TOTAL SCORE`)
+           strata = `TOTAL SCORE`) # put output variable name here
 
 ### rank ----
 set.seed(22201702)
@@ -456,13 +444,13 @@ fit_xg_rank <-
 performance_rf_score <- 
   fit_rf_score %>% 
   collect_metrics() %>% 
-  mutate(algorithm = "Random Forest")
+  mutate(algorithm = "Random Forest for score")
 
 ### Rank ----
 performance_rf_rank <- 
   fit_rf_rank %>% 
   collect_metrics() %>% 
-  mutate(algorithm = "Random Forest")
+  mutate(algorithm = "Random Forest for rank")
 
 ## XG Boost ----
 
@@ -470,17 +458,20 @@ performance_rf_rank <-
 performance_xg_score <- 
   fit_xg_score %>% # for_performance(fit_xg) %>% 
   collect_metrics() %>%
-  mutate(algorithm = "XG Boost")
+  mutate(algorithm = "XG Boost for score")
 
 ### Rank ----
 performance_xg_rank <- 
   fit_xg_rank %>% # for_performance(fit_xg) %>% 
   collect_metrics() %>%
-  mutate(algorithm = "XG Boost")
+  mutate(algorithm = "XG Boost for rank")
 
+# COMPARE PERFORMANCE OF DIFFERENT ALGORITHMS AND RECIPES ----
 
-bind_rows(performance_rf,
-          performance_xg) %>% 
+bind_rows(performance_rf_score,
+          performance_rf_rank,
+          performance_xg_score,
+          performance_xg_rank) %>% 
   select(-.estimator,
          -.config) %>% 
   pivot_wider(names_from = .metric,
@@ -490,18 +481,35 @@ bind_rows(performance_rf,
                           "rsq"),
               digits = 2)
 
-prediction_rf <- 
-  fit_rf %>% 
+# CHECK PREDICTIONS ----
+## Random Forest ----
+### Score ----
+prediction_rf_score <- 
+  fit_rf_score %>% 
   collect_predictions() %>%
-  mutate(algorithm = "Random Forest")
-
-prediction_xg <-
-  fit_xg %>%
+  mutate(algorithm = "Random Forest for score")
+### Rank ----
+prediction_rf_rank <- 
+  fit_rf_rank %>% 
   collect_predictions() %>%
-  mutate(algorithm = "XG Boost")
+  mutate(algorithm = "Random Forest for rank")
 
+## XG Bost ----
+### Score ----
+prediction_xg_score <-
+  fit_xg_score %>%
+  collect_predictions() %>%
+  mutate(algorithm = "XG Boost for score")
+
+### Rank ----
+prediction_xg_rank <-
+  fit_xg_rank %>%
+  collect_predictions() %>%
+  mutate(algorithm = "XG Boost for rank")
 # b <- prediction_rf %>%
 #   mutate(new_rank = round(.pred))
+
+# CONSOLIDATE PREDICTIONS ----
 
 cleaned_data <- 
   cleaned_data %>% 
@@ -509,18 +517,25 @@ cleaned_data <-
 
 data_with_predictions <-
   cleaned_data %>% 
-  inner_join(prediction_rf,
+  inner_join(prediction_rf_score,
+             prediction_rf_rank,
+             prediction_xg_score,
+             prediction_xg_rank,
              by = ".row")
+prediction_rf_rank$.pred <- round(prediction_rf_rank$.pred)
 
+dt <- data_test %>% rename(.row = rowid)
+a <- inner_join(dt, prediction_rf_rank)
+a %>% select(.row, `2022`, .pred)
 # a <- data_with_predictions %>% select(rowid, new_rank)
 
 for_your_plotly <- 
-  prediction_rf %>% 
-  select(.row, `TOTAL SCOER`, .pred)
+  prediction_rf_rank %>% 
+  select(.row, `2022`, .pred)
 
 plotly_object <- 
   for_your_plotly %>% 
-  ggplot(aes(x = `TOTAL SCORE`,
+  ggplot(aes(x = `2022`,
              y = .pred)
   ) + 
   geom_point(color = "dodgerblue",
