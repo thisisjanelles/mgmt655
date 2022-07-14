@@ -8,6 +8,7 @@ pacman::p_load(tidyverse, lubridate,
                broom, modelr,
                shiny, shinydashboard
                )
+
 # Download dataset
 # https://www.kaggle.com/datasets/prasertk/cities-with-the-best-worklife-balance-2022
 
@@ -26,7 +27,7 @@ input_data_with_row_id <-
   as_tibble() %>%
   rowid_to_column()
 
-view(input_data_with_row_id)
+skim(input_data_with_row_id)
 
 # Convert 2021 to numeric and create a new column called delta
 city_rank_delta <- input_data_with_row_id %>% 
@@ -35,6 +36,8 @@ city_rank_delta <- input_data_with_row_id %>%
   mutate(`2021` = as.numeric(`2021`)) %>%
   mutate(delta = `2021` - `2022`) %>%
   arrange(desc(delta))
+
+city_rank_delta
 
 # Actual work
 
@@ -63,6 +66,8 @@ city_rank_delta_plot <-
   theme_fivethirtyeight() +
   theme(axis.text.y = element_blank())
 
+city_rank_delta_plot
+
 # Create function to convert % numbers into decimal
 convert_to_percentage <- function(column_name) {
   as.numeric(sub("%", "", column_name)) / 100
@@ -85,29 +90,57 @@ cleaned_data <- after_vacations %>%
                   `Remote Jobs`,
                   `Multiple Jobholders`
                   ), 
-                  convert_to_percentage)) %>%
-  na.omit()
+                  convert_to_percentage)) # %>% try without getting rid of the NAs
+  # na.omit()
 
 #THE DATA IS NOW CLEEEEEAAAANNNN
 skim(cleaned_data)
 
-cleaned_data <- cleaned_data %>% select(-City, -`2021`, -Country)
+# cleaned_data <- cleaned_data %>% select(-City, -`2021`, -Country)
 
-# THE REAL SHIZZ STARTS NOW ----
-## Recipe ----
+# THE REAL INTELLIGENCE STARTS NOW ----
+
+# RECIPE ----
+
+## Recipe for TOTAL SCORE----
 recipe_score <- 
   recipe(formula = `TOTAL SCORE`~ .,
          data = cleaned_data) %>% 
-  step_rm(rowid) %>% 
+  step_rm(rowid, City, `2021`, Country, `2022`) %>% 
+  step_impute_knn(`Vacations Taken (Days)`) %>%
   step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
 
-## Baking ----
+## Recipe for 2022 rank----
+recipe_rank <- 
+  recipe(formula = `2022`~ .,
+         data = cleaned_data) %>% 
+  step_rm(rowid, City, `2021`, Country, `TOTAL SCORE`) %>% 
+  step_impute_knn(`Vacations Taken (Days)`) %>%
+  step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
+
+# recipe_score %>% tidy()
+
+# BAKING ----
+
+## Baking for total score ----
 baked_score <- 
   recipe_score %>% # plan 
   prep() %>% # for calculation
   bake(cleaned_data) 
 
-#correlation
+baked_score
+
+## Baking for rank ----
+baked_rank <-
+  recipe_rank %>%
+  prep() %>%
+  bake(cleaned_data)
+
+baked_rank
+
+# CORRELATION ----
+
+## Correlation for score ----
 baked_score %>% 
   as.matrix(.) %>%
   rcorr(.) %>%
@@ -118,6 +151,22 @@ baked_score %>%
   mutate(absCORR = abs(CORR)) %>%
   filter(var1 == "TOTAL SCORE" | var2 == "TOTAL SCORE") %>%
   DT::datatable()  
+
+## Correlation for rank ----
+baked_rank %>% 
+  as.matrix(.) %>%
+  rcorr(.) %>%
+  tidy(.) %>%
+  rename(var1 = column1,
+         var2 = column2,
+         CORR = estimate) %>%
+  mutate(absCORR = abs(CORR)) %>%
+  filter(var1 == "2022" | var2 == "2022") %>%
+  DT::datatable()  
+
+
+# test code: check how a variable varies with the output
+# then decide on a regression model output
 
 cleaned_data %>% 
   ggplot(aes(x = `Inclusivity & Tolerance`, y = `TOTAL SCORE`)) +
@@ -136,7 +185,7 @@ cleaned_data %>%
               color = "tomato3") +
   theme_bw()
 
-# Random forest
+# SPLITTING ----
 
 set.seed(22062801)
 
@@ -146,7 +195,7 @@ data_split <-
 
 data_split
 
-## Executing
+## CREATE TRAIN AND TEST SETS
 
 data_train <- # training(rent_split)
   data_split %>% 
@@ -156,6 +205,8 @@ data_test <-
   data_split %>% 
   testing() # 20%
 
+
+# CREATE MODELS ----
 ## Random Forest ----
 
 rf_model <- 
@@ -165,71 +216,288 @@ rf_model <-
              importance = "permutation") %>% 
   set_mode("regression")
 
-workflow_rf <-
+
+## XG Boost ----
+
+XG_BOOST <- # extreme gradient boosting
+  boost_tree(trees = 500L,
+             mtry = tune(),
+             min_n = tune(),
+             tree_depth = tune(),
+             sample_size = tune(),
+             learn_rate = tune()
+  ) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+
+
+# CREATE WORKFLOWS ----
+
+## Random Forest with score----
+workflow_rf_score <-
   workflow() %>% 
   add_recipe(recipe_score) %>% 
   add_model(rf_model)
 
+## Random Forest with rank ----
+workflow_rf_rank <-
+  workflow() %>% 
+  add_recipe(recipe_rank) %>% 
+  add_model(rf_model)
 
+## XG Boost with score ----
+workflow_xg_score <- 
+  workflow() %>% 
+  add_recipe(recipe_score) %>% 
+  add_model(XG_BOOST)
+
+## XG Boost with rank ----
+workflow_xg_rank <- 
+  workflow() %>% 
+  add_recipe(recipe_rank) %>% 
+  add_model(XG_BOOST)
+
+# CROSS VALIDATION ----
+
+## cross validation for Random Forest ----
 set.seed(22062802)
 
-CV <- 
+cv_rf <- 
   data_train %>% 
   vfold_cv(v = 10)
 
-CV
+cv_rf
+
+## cross validation for XG BOOST ----
+
+### score ----
+set.seed(22201701)
+
+cv_xg_score <- 
+  data_train %>% 
+  vfold_cv(v = 10,
+           strata = `TOTAL SCORE`)
+
+### rank ----
+set.seed(22201702)
+
+cv_xg_rank <- 
+  data_train %>% 
+  vfold_cv(v = 10,
+           strata = `2022`)
+
 
 doParallel::registerDoParallel()
 
-tuned_RF <-
-  workflow_rf %>% 
-  tune_grid(resamples = CV,
+# TUNING ----
+## Random Forest score tuning ----
+### Score ----
+tuned_rf_score <-
+  workflow_rf_score %>% 
+  tune_grid(resamples = cv_rf,
             grid = 3:10)
 
-parameters_tuned_RF <- 
-  tuned_RF %>% 
+### Rank ----
+tuned_rf_rank <-
+  workflow_xg_rank %>%
+  tune_grid(resamples = cv_rf,
+            grid = 3:10)
+
+## XG Boost tuning ----
+install.packages("finetune")
+library(finetune)
+
+set.seed(22201703)
+
+install.packages("xgboost") # Extreme Gradient Boosting
+library(xgboost)
+
+set.seed(22201702)
+
+grid_xg <-
+  grid_max_entropy(
+    mtry(c(5L, 10L),
+    ),
+    min_n(c(10L, 40L)
+    ),
+    tree_depth(c(5L, 10L)
+    ),
+    sample_prop(c(0.5, 1.0)
+    ),
+    learn_rate(c(-2, -1)
+    ),
+    size = 20
+  )
+
+### Score ----
+tuned_xg_score <- 
+  workflow_xg_score %>% 
+  tune_grid(resamples = cv_xg_score,
+            grid = grid_xg,
+            control = control_grid(save_pred = T)
+  )
+
+### Rank ----
+tuned_xg_rank <- 
+  workflow_xg_rank %>% 
+  tune_grid(resamples = cv_xg_rank,
+            grid = grid_xg,
+            control = control_grid(save_pred = T)
+  )
+
+# PARAMETERS AFTER TUNING ----
+
+## Random Forest parameters ----
+
+### Score ----
+parameters_tuned_rf_score <- 
+  tuned_rf_score %>% 
   select_best(metric = "rmse")
 
-## finalize_workflow()
+### Rank ----
+parameters_tuned_rf_rank <- 
+  tuned_rf_rank %>% 
+  select_best(metric = "rmse")
 
-finalized_workflow_RF <-
-  workflow_rf %>% 
-  finalize_workflow(parameters_tuned_RF)
+## XG Boost parameters ----
 
-fit_rf <-
-  finalized_workflow_RF %>% 
+### Score ----
+parameters_tuned_xg_score <- 
+  tuned_xg_score %>% 
+  select_best(metric = "rmse")
+
+### Rank ----
+parameters_tuned_xg_rank <- 
+  tuned_xg_rank %>% 
+  select_best(metric = "rmse")
+
+# FINALIZE WORKFLOW ----
+
+## Random Forest ----
+
+### Score ----
+finalized_workflow_rf_score <-
+  workflow_rf_score %>% 
+  finalize_workflow(parameters_tuned_rf_score)
+
+### Rank ----
+finalized_workflow_rf_rank <-
+  workflow_rf_rank %>% 
+  finalize_workflow(parameters_tuned_rf_rank)
+
+## XG Boost ----
+
+### Score ----
+finalized_workflow_xg_score <- 
+  workflow_xg_score %>% 
+  finalize_workflow(parameters_tuned_xg_score)
+
+### Rank ----
+finalized_workflow_xg_rank <- 
+  workflow_xg_rank %>% 
+  finalize_workflow(parameters_tuned_xg_rank)
+
+# LAST FIT ----
+
+## Random Forest ----
+
+### Score ----
+fit_rf_score <-
+  finalized_workflow_rf_score %>% 
   last_fit(data_split)
 
-performance_rf <- 
-  fit_rf %>% 
-  collect_metrics() %>% 
-  mutate(algo = "Random Forest")
+### Rank ----
+fit_rf_rank <-
+  finalized_workflow_rf_rank %>% 
+  last_fit(data_split)
 
-performance_rf
+## XG Boost ----
+
+### Score ----
+fit_xg_score <-
+  finalized_workflow_xg_score %>% 
+  last_fit(data_split)
+
+### Rank ----
+fit_xg_rank <-
+  finalized_workflow_xg_rank %>% 
+  last_fit(data_split)
+
+
+# PERFORMANCE ----
+
+## Random Forest ----
+
+### Score ----
+performance_rf_score <- 
+  fit_rf_score %>% 
+  collect_metrics() %>% 
+  mutate(algorithm = "Random Forest")
+
+### Rank ----
+performance_rf_rank <- 
+  fit_rf_rank %>% 
+  collect_metrics() %>% 
+  mutate(algorithm = "Random Forest")
+
+## XG Boost ----
+
+### Score ----
+performance_xg_score <- 
+  fit_xg_score %>% # for_performance(fit_xg) %>% 
+  collect_metrics() %>%
+  mutate(algorithm = "XG Boost")
+
+### Rank ----
+performance_xg_rank <- 
+  fit_xg_rank %>% # for_performance(fit_xg) %>% 
+  collect_metrics() %>%
+  mutate(algorithm = "XG Boost")
+
+
+bind_rows(performance_rf,
+          performance_xg) %>% 
+  select(-.estimator,
+         -.config) %>% 
+  pivot_wider(names_from = .metric,
+              values_from = .estimate) %>% 
+  datatable() %>% 
+  formatRound(columns = c("rmse",
+                          "rsq"),
+              digits = 2)
 
 prediction_rf <- 
   fit_rf %>% 
-  collect_predictions()
+  collect_predictions() %>%
+  mutate(algorithm = "Random Forest")
 
-prediction_rf
+prediction_xg <-
+  fit_xg %>%
+  collect_predictions() %>%
+  mutate(algorithm = "XG Boost")
+
+# b <- prediction_rf %>%
+#   mutate(new_rank = round(.pred))
 
 cleaned_data <- 
   cleaned_data %>% 
-  tibble::rowid_to_column("ID")
+  tibble::rowid_to_column(".row")
 
 data_with_predictions <-
   cleaned_data %>% 
   inner_join(prediction_rf,
-             by = ID)
+             by = ".row")
+
+# a <- data_with_predictions %>% select(rowid, new_rank)
 
 for_your_plotly <- 
   prediction_rf %>% 
-  select(.row, `TOTAL SCORE`, .pred)
+  select(.row, `TOTAL SCOER`, .pred)
 
 plotly_object <- 
   for_your_plotly %>% 
   ggplot(aes(x = `TOTAL SCORE`,
-             y =.pred)
+             y = .pred)
   ) + 
   geom_point(color = "dodgerblue",
              alpha = 0.50) + 
