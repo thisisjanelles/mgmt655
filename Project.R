@@ -1,7 +1,8 @@
 # Install Packages ----
 
 devtools::install_github("https://github.com/Mikata-Project/ggthemr.git")
-
+install.packages("parsnip")
+library(parsnip)
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
                skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
@@ -242,6 +243,10 @@ XG_BOOST <- # extreme gradient boosting
   set_engine("xgboost") %>% 
   set_mode("regression")
 
+## Linear Regression
+ols_model <- linear_reg() %>%
+  set_engine("lm") %>%
+  set_mode("regression")
 
 # CREATE WORKFLOWS ----
 
@@ -268,6 +273,18 @@ workflow_xg_rank <-
   workflow() %>% 
   add_recipe(recipe_rank) %>% 
   add_model(XG_BOOST)
+
+## Linear regression with score ----
+workflow_ols_score <- 
+  workflow() %>% 
+  add_recipe(recipe_score) %>% 
+  add_model(ols_model)
+
+## Linear regression with rank ----
+workflow_ols_rank <- 
+  workflow() %>% 
+  add_recipe(recipe_rank) %>% 
+  add_model(ols_model)
 
 # CROSS VALIDATION ----
 
@@ -301,6 +318,15 @@ cv_xg_rank <-
 
 doParallel::registerDoParallel()
 
+## cross validation for Random Forest ----
+set.seed(22062802)
+
+cv_ols <- 
+  data_train %>% 
+  vfold_cv(v = 10)
+
+cv_ols
+
 # TUNING ----
 ## Random Forest score tuning ----
 ### Score ----
@@ -319,7 +345,7 @@ tuned_rf_rank <-
 install.packages("finetune")
 library(finetune)
 
-set.seed(22201703)
+# set.seed(22201703)
 
 install.packages("xgboost") # Extreme Gradient Boosting
 library(xgboost)
@@ -357,6 +383,24 @@ tuned_xg_rank <-
             control = control_grid(save_pred = T)
   )
 
+## OLS Tuning ----
+### Score ----
+tuned_ols_score <-
+  workflow_ols_score %>%
+  tune_grid(resamples = cv_ols,
+            grid = 3:10)
+
+### Rank ----
+tuned_ols_rank <-
+  workflow_ols_rank %>%
+  tune_grid(resamples = cv_ols,
+            grid = 3:10)
+
+# tuned_rf_rank <-
+#   workflow_xg_rank %>%
+#   tune_grid(resamples = cv_rf,
+#             grid = 3:10)
+
 # PARAMETERS AFTER TUNING ----
 
 ## Random Forest parameters ----
@@ -381,6 +425,18 @@ parameters_tuned_xg_score <-
 ### Rank ----
 parameters_tuned_xg_rank <- 
   tuned_xg_rank %>% 
+  select_best(metric = "rmse")
+
+## Linear regression parameters ----
+
+### Score ----
+parameters_tuned_ols_score <- 
+  tuned_ols_score %>% 
+  select_best(metric = "rmse")
+
+### Rank ----
+parameters_tuned_ols_rank <- 
+  tuned_ols_rank %>% 
   select_best(metric = "rmse")
 
 # FINALIZE WORKFLOW ----
@@ -409,6 +465,18 @@ finalized_workflow_xg_rank <-
   workflow_xg_rank %>% 
   finalize_workflow(parameters_tuned_xg_rank)
 
+## Linear regression ----
+
+### Score ----
+finalized_workflow_ols_score <-
+  workflow_ols_score %>% 
+  finalize_workflow(parameters_tuned_ols_score)
+
+### Rank ----
+finalized_workflow_ols_rank <-
+  workflow_ols_rank %>% 
+  finalize_workflow(parameters_tuned_ols_rank)
+
 # LAST FIT ----
 
 ## Random Forest ----
@@ -435,6 +503,18 @@ fit_xg_rank <-
   finalized_workflow_xg_rank %>% 
   last_fit(data_split)
 
+
+## Linear regression ----
+
+### Score ----
+fit_ols_score <-
+  finalized_workflow_ols_score %>% 
+  last_fit(data_split)
+
+### Score ----
+fit_ols_rank <-
+  finalized_workflow_ols_rank %>% 
+  last_fit(data_split)
 
 # PERFORMANCE ----
 
@@ -466,12 +546,28 @@ performance_xg_rank <-
   collect_metrics() %>%
   mutate(algorithm = "XG Boost for rank")
 
+## Linear regression ----
+
+### Score ----
+performance_ols_score <- 
+  fit_ols_score %>% 
+  collect_metrics() %>% 
+  mutate(algorithm = "Linear regression for score")
+
+### Rank ----
+performance_ols_rank <- 
+  fit_ols_rank %>% 
+  collect_metrics() %>% 
+  mutate(algorithm = "Linear regression for rank")
+
 # COMPARE PERFORMANCE OF DIFFERENT ALGORITHMS AND RECIPES ----
 
 bind_rows(performance_rf_score,
           performance_rf_rank,
           performance_xg_score,
-          performance_xg_rank) %>% 
+          performance_xg_rank,
+          performance_ols_score,
+          performance_ols_rank) %>% 
   select(-.estimator,
          -.config) %>% 
   pivot_wider(names_from = .metric,
@@ -494,20 +590,31 @@ prediction_rf_rank <-
   collect_predictions() %>%
   mutate(algorithm = "Random Forest for rank")
 
-## XG Bost ----
+## XG Boost ----
 ### Score ----
 prediction_xg_score <-
   fit_xg_score %>%
   collect_predictions() %>%
-  mutate(algorithm = "XG Boost for score")
+  mutate(algorithm = "XG Boost for score") 
 
 ### Rank ----
 prediction_xg_rank <-
   fit_xg_rank %>%
   collect_predictions() %>%
   mutate(algorithm = "XG Boost for rank")
-# b <- prediction_rf %>%
-#   mutate(new_rank = round(.pred))
+
+## Linear regression ----
+### Score ----
+prediction_ols_score <- 
+  fit_ols_score %>% 
+  collect_predictions() %>%
+  mutate(algorithm = "Linear regression for score")
+
+### Rank ----
+prediction_ols_rank <- 
+  fit_ols_rank %>% 
+  collect_predictions() %>%
+  mutate(algorithm = "Linear regression for rank")
 
 # CONSOLIDATE PREDICTIONS ----
 
@@ -515,27 +622,26 @@ cleaned_data <-
   cleaned_data %>% 
   tibble::rowid_to_column(".row")
 
+a <- data_test %>%
+  rename(.row = rowid)
+
 data_with_predictions <-
-  cleaned_data %>% 
+  a %>% 
   inner_join(prediction_rf_score,
              prediction_rf_rank,
              prediction_xg_score,
              prediction_xg_rank,
+             prediction_ols_score,
+             prediction_ols_rank,
              by = ".row")
-prediction_rf_rank$.pred <- round(prediction_rf_rank$.pred)
 
-dt <- data_test %>% rename(.row = rowid)
-a <- inner_join(dt, prediction_rf_rank)
-a %>% select(.row, `2022`, .pred)
-# a <- data_with_predictions %>% select(rowid, new_rank)
+# TODO: Create a data frame comparing the outputs of all models with the original output.
 
-for_your_plotly <- 
-  prediction_rf_rank %>% 
-  select(.row, `2022`, .pred)
-
-plotly_object <- 
-  for_your_plotly %>% 
-  ggplot(aes(x = `2022`,
+# CREATE PLOTS ----
+rf_score_plot <- 
+  prediction_rf_score %>% 
+  select(.row, `TOTAL SCORE`, .pred)%>%
+  ggplot(aes(x = `TOTAL SCORE`,
              y = .pred)
   ) + 
   geom_point(color = "dodgerblue",
@@ -544,9 +650,92 @@ plotly_object <-
               lty = 2) +
   labs(y = "Predicted score of city",
        x = "Actual score of city",
-       title = "Predicting city work-life balance score") + 
+       title = "Predicting city work-life balance score using RF") + 
   theme_bw()
 
-ggplotly(plotly_object)
+rf_rank_plot <- 
+  prediction_rf_rank %>% 
+  select(.row, `2022`, .pred) %>%
+  ggplot(aes(x = `2022`,
+             y = .pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted rank of city",
+       x = "Actual rank of city",
+       title = "Predicting city work-life balance rank using RF") + 
+  theme_bw()
+
+xg_score_plot <- 
+  prediction_xg_score %>% 
+  select(.row, `TOTAL SCORE`, .pred) %>%
+  ggplot(aes(x = `TOTAL SCORE`,
+             y = .pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted score of city",
+       x = "Actual score of city",
+       title = "Predicting city work-life balance score using XG") + 
+  theme_bw()
+
+xg_rank_plot <- 
+  prediction_rf_rank %>% 
+  select(.row, `2022`, .pred) %>%
+  ggplot(aes(x = `2022`,
+             y = .pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted rank of city",
+       x = "Actual rank of city",
+       title = "Predicting city work-life balance rank using XG") + 
+  theme_bw()
+
+grid.arrange(rf_score_plot, rf_rank_plot, 
+             xg_score_plot, xg_rank_plot,
+             ncol = 2)
+
+ols_score_plot <- 
+  prediction_ols_score %>% 
+  select(.row, `TOTAL SCORE`, .pred) %>%
+  ggplot(aes(x = `TOTAL SCORE`,
+             y = .pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted score of city",
+       x = "Actual score of city",
+       title = "Predicting city work-life balance score using OLS") + 
+  theme_bw()
+
+
+ols_rank_plot <- 
+  prediction_ols_rank %>% 
+  select(.row, `2022`, .pred) %>%
+  ggplot(aes(x = `2022`,
+             y = .pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted rank of city",
+       x = "Actual rank of city",
+       title = "Predicting city work-life balance rank using OLS") + 
+  theme_bw()
+
+grid.arrange(rf_score_plot, rf_rank_plot, 
+             xg_score_plot, xg_rank_plot,
+             ols_score_plot, ols_rank_plot,
+             ncol = 2)
 
 # Results??
