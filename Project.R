@@ -1,8 +1,8 @@
 # Install Packages ----
 
 devtools::install_github("https://github.com/Mikata-Project/ggthemr.git")
-install.packages("parsnip")
-library(parsnip)
+# install.packages("parsnip")
+# library(parsnip)
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
                skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
@@ -11,7 +11,7 @@ pacman::p_load(tidyverse, lubridate,
                ggthemes, scales, ggthemr, ggfortify, ggstance, ggalt,
                broom, modelr,
                shiny, shinydashboard,
-               finetune, xgboost
+               finetune, xgboost, parsnip
                )
 
 # Read Dataset ----
