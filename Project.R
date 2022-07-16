@@ -10,7 +10,8 @@ pacman::p_load(tidyverse, lubridate,
                DT, plotly,
                ggthemes, scales, ggthemr, ggfortify, ggstance, ggalt,
                broom, modelr,
-               shiny, shinydashboard
+               shiny, shinydashboard,
+               finetune, xgboost
                )
 
 # Read Dataset ----
@@ -315,7 +316,6 @@ cv_xg_rank <-
   vfold_cv(v = 10,
            strata = `2022`)
 
-
 doParallel::registerDoParallel()
 
 ## cross validation for Random Forest ----
@@ -342,13 +342,14 @@ tuned_rf_rank <-
             grid = 3:10)
 
 ## XG Boost tuning ----
-install.packages("finetune")
-library(finetune)
+# Moved package install to top of script
+# install.packages("finetune")
+# library(finetune)
 
 # set.seed(22201703)
-
-install.packages("xgboost") # Extreme Gradient Boosting
-library(xgboost)
+# Moved package install to top of script
+# install.packages("xgboost") # Extreme Gradient Boosting
+# library(xgboost)
 
 set.seed(22201702)
 
@@ -739,3 +740,4 @@ grid.arrange(rf_score_plot, rf_rank_plot,
              ncol = 2)
 
 # Results??
+
