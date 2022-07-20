@@ -1,7 +1,7 @@
 # Install Packages ----
 
-devtools::install_github("https://github.com/Mikata-Project/ggthemr.git")
-install.packages("parsnip")
+# devtools::install_github("https://github.com/Mikata-Project/ggthemr.git")
+# install.packages("parsnip")
 library(parsnip)
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
@@ -10,9 +10,9 @@ pacman::p_load(tidyverse, lubridate,
                DT, plotly,
                ggthemes, scales, ggthemr, ggfortify, ggstance, ggalt,
                broom, modelr,
-               shiny, shinydashboard,
-               finetune, xgboost, parsnip
-               )
+               shiny, shinydashboard
+)
+library(ggthemr)
 
 # Read Dataset ----
 input_data <- read_csv("input_dataset.csv")
@@ -99,7 +99,7 @@ skim(after_vacations)
 
 # Convert all other percentage characters to numeric values
 cleaned_data <- after_vacations %>% 
-  select(-`City`, -`2021`) %>%
+  select(-`City`, -`2021`, -`2022`) %>%
   mutate(across(c(`Inflation`, 
                   `Overworked Population`,
                   `Remote Jobs`,
@@ -123,16 +123,16 @@ skim(cleaned_data)
 recipe_eda <- 
   recipe(formula = `TOTAL SCORE`~ .,
          data = cleaned_data) %>% 
-  step_rm(rowid, `2022`) %>%
+  step_rm(rowid, `Country`) %>%
   step_impute_knn(`Vacations Taken (Days)`) %>%
-  step_normalize(all_numeric_predictors()) %>% # setting Ms at 0; SDs at 1
-  step_dummy(Country)
+  step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
+  # step_dummy(Country)
 
-## Recipe for 2022 rank----
-# recipe_rank <- 
+# # Recipe for 2022 rank----
+# recipe_rank <-
 #   recipe(formula = `2022`~ .,
-#          data = cleaned_data) %>% 
-#   step_rm(rowid, `TOTAL SCORE`) %>% 
+#          data = cleaned_data) %>%
+#   step_rm(rowid, `TOTAL SCORE`) %>%
 #   step_impute_knn(`Vacations Taken (Days)`) %>%
 #   step_normalize(all_numeric_predictors()) %>% # setting Ms at 0; SDs at 1
 #   step_dummy(Country)
@@ -142,12 +142,12 @@ recipe_eda <-
 # BAKING ----
 
 ## Baking for total score ----
-baked_score <- 
-  recipe_score %>% # plan 
+baked_eda <- 
+  recipe_eda %>% # plan 
   prep() %>% # for calculation
   bake(cleaned_data) 
 
-glimpse(baked_score)
+glimpse(baked_eda)
 
 ## Baking for rank ----
 # baked_rank <-
@@ -161,7 +161,7 @@ glimpse(baked_score)
 
 ## Correlation for score ----
 
-baked_score %>% 
+corr_table <- baked_eda %>% 
   as.matrix(.) %>%
   rcorr(.) %>%
   tidy(.) %>%
@@ -171,6 +171,8 @@ baked_score %>%
   mutate(absCORR = abs(CORR)) %>%
   # filter(var1 == "TOTAL SCORE" | var2 == "TOTAL SCORE") %>%
   DT::datatable()  
+
+corr_table
 
 ## Correlation for rank ----
 # baked_rank %>% 
@@ -225,14 +227,31 @@ data_test <-
   testing() # 20%
 
 # Recipe for prediction ----
-
+## Recipe 1: with country ----
 recipe_score <- 
   recipe(formula = `TOTAL SCORE`~ .,
-         data = cleaned_data) %>% 
-  step_rm(rowid, `2022`) %>%
+         data = data_train) %>% 
+  step_rm(rowid, `Country`, `Affordability`) %>%
   step_impute_knn(`Vacations Taken (Days)`) %>%
   step_normalize(all_numeric_predictors()) %>% # setting Ms at 0; SDs at 1
-  step_dummy(Country)
+  step_poly(`Access to Mental Healthcare`, `Air Quality`, `Wellness and Fitness`,
+            degree = 2, role = "predictor")
+
+## Recipe 2: without country ----
+# nc: No Country
+recipe_score_nc <- 
+  recipe(formula = `TOTAL SCORE`~ .,
+         data = data_train) %>% 
+  step_rm(rowid, `Country`, `Affordability`) %>%
+  step_impute_knn(`Vacations Taken (Days)`) %>%
+  step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
+
+baked_score <- 
+  recipe_score %>% # plan 
+  prep() %>% # for calculation
+  bake(cleaned_data) 
+
+glimpse(baked_eda)
 
 # CREATE MODELS ----
 ## Random Forest ----
@@ -271,10 +290,10 @@ workflow_rf_score <-
   add_recipe(recipe_score) %>% 
   add_model(rf_model)
 
-## Random Forest with rank ----
-workflow_rf_rank <-
-  workflow() %>% 
-  add_recipe(recipe_rank) %>% 
+## Random Forest without country ----
+workflow_rf_score_nc <-
+  workflow() %>%
+  add_recipe(recipe_score_nc) %>%
   add_model(rf_model)
 
 ## XG Boost with score ----
@@ -283,10 +302,10 @@ workflow_xg_score <-
   add_recipe(recipe_score) %>% 
   add_model(XG_BOOST)
 
-## XG Boost with rank ----
-workflow_xg_rank <- 
-  workflow() %>% 
-  add_recipe(recipe_rank) %>% 
+## XG Boost without country ----
+workflow_xg_score_nc <-
+  workflow() %>%
+  add_recipe(recipe_score_nc) %>%
   add_model(XG_BOOST)
 
 ## Linear regression with score ----
@@ -295,10 +314,10 @@ workflow_ols_score <-
   add_recipe(recipe_score) %>% 
   add_model(ols_model)
 
-## Linear regression with rank ----
-workflow_ols_rank <- 
-  workflow() %>% 
-  add_recipe(recipe_rank) %>% 
+## Linear regression without country ----
+workflow_ols_score_nc <-
+  workflow() %>%
+  add_recipe(recipe_score_nc) %>%
   add_model(ols_model)
 
 # CROSS VALIDATION ----
@@ -322,13 +341,13 @@ cv_xg_score <-
   vfold_cv(v = 10,
            strata = `TOTAL SCORE`) # put output variable name here
 
-### rank ----
-set.seed(22201702)
-
-cv_xg_rank <- 
-  data_train %>% 
-  vfold_cv(v = 10,
-           strata = `2022`)
+# ### rank ----
+# set.seed(22201702)
+# 
+# cv_xg_rank <- 
+#   data_train %>% 
+#   vfold_cv(v = 10,
+#            strata = `2022`)
 
 
 doParallel::registerDoParallel()
@@ -350,19 +369,19 @@ tuned_rf_score <-
   tune_grid(resamples = cv_rf,
             grid = 3:10)
 
-### Rank ----
-tuned_rf_rank <-
-  workflow_xg_rank %>%
+## Without country ----
+tuned_rf_score_nc <-
+  workflow_xg_score_nc %>%
   tune_grid(resamples = cv_rf,
             grid = 3:10)
 
 ## XG Boost tuning ----
-install.packages("finetune")
+# install.packages("finetune")
 library(finetune)
 
 # set.seed(22201703)
 
-install.packages("xgboost") # Extreme Gradient Boosting
+# install.packages("xgboost") # Extreme Gradient Boosting
 library(xgboost)
 
 set.seed(22201702)
@@ -390,10 +409,10 @@ tuned_xg_score <-
             control = control_grid(save_pred = T)
   )
 
-### Rank ----
-tuned_xg_rank <- 
-  workflow_xg_rank %>% 
-  tune_grid(resamples = cv_xg_rank,
+## Without country ----
+tuned_xg_score_nc <-
+  workflow_xg_score_nc %>%
+  tune_grid(resamples = cv_xg_score,
             grid = grid_xg,
             control = control_grid(save_pred = T)
   )
@@ -405,16 +424,11 @@ tuned_ols_score <-
   tune_grid(resamples = cv_ols,
             grid = 3:10)
 
-### Rank ----
-tuned_ols_rank <-
-  workflow_ols_rank %>%
-  tune_grid(resamples = cv_ols,
+### Without country ----
+ tuned_ols_score_nc <-
+   workflow_ols_score_nc %>%
+   tune_grid(resamples = cv_ols,
             grid = 3:10)
-
-# tuned_rf_rank <-
-#   workflow_xg_rank %>%
-#   tune_grid(resamples = cv_rf,
-#             grid = 3:10)
 
 # PARAMETERS AFTER TUNING ----
 
@@ -425,21 +439,21 @@ parameters_tuned_rf_score <-
   tuned_rf_score %>% 
   select_best(metric = "rmse")
 
-### Rank ----
-parameters_tuned_rf_rank <- 
-  tuned_rf_rank %>% 
+### Without country ----
+parameters_tuned_rf_score_nc <-
+  tuned_rf_score_nc %>%
   select_best(metric = "rmse")
 
 ## XG Boost parameters ----
 
 ### Score ----
-parameters_tuned_xg_score <- 
-  tuned_xg_score %>% 
+parameters_tuned_xg_score <-
+  tuned_xg_score %>%
   select_best(metric = "rmse")
 
-### Rank ----
-parameters_tuned_xg_rank <- 
-  tuned_xg_rank %>% 
+## Without country ----
+parameters_tuned_xg_score_nc <-
+  tuned_xg_score_nc %>%
   select_best(metric = "rmse")
 
 ## Linear regression parameters ----
@@ -449,9 +463,9 @@ parameters_tuned_ols_score <-
   tuned_ols_score %>% 
   select_best(metric = "rmse")
 
-### Rank ----
-parameters_tuned_ols_rank <- 
-  tuned_ols_rank %>% 
+## Without country ----
+parameters_tuned_ols_score_nc <-
+  tuned_ols_score_nc %>%
   select_best(metric = "rmse")
 
 # FINALIZE WORKFLOW ----
@@ -463,10 +477,10 @@ finalized_workflow_rf_score <-
   workflow_rf_score %>% 
   finalize_workflow(parameters_tuned_rf_score)
 
-### Rank ----
-finalized_workflow_rf_rank <-
-  workflow_rf_rank %>% 
-  finalize_workflow(parameters_tuned_rf_rank)
+## Without country ----
+finalized_workflow_rf_score_nc <-
+  workflow_rf_score_nc %>%
+  finalize_workflow(parameters_tuned_rf_score_nc)
 
 ## XG Boost ----
 
@@ -475,10 +489,10 @@ finalized_workflow_xg_score <-
   workflow_xg_score %>% 
   finalize_workflow(parameters_tuned_xg_score)
 
-### Rank ----
-finalized_workflow_xg_rank <- 
-  workflow_xg_rank %>% 
-  finalize_workflow(parameters_tuned_xg_rank)
+## Without country ----
+finalized_workflow_xg_score_nc <-
+  workflow_xg_score_nc %>%
+  finalize_workflow(parameters_tuned_xg_score_nc)
 
 ## Linear regression ----
 
@@ -487,10 +501,10 @@ finalized_workflow_ols_score <-
   workflow_ols_score %>% 
   finalize_workflow(parameters_tuned_ols_score)
 
-### Rank ----
-finalized_workflow_ols_rank <-
-  workflow_ols_rank %>% 
-  finalize_workflow(parameters_tuned_ols_rank)
+## Without country ----
+finalized_workflow_ols_score_nc <-
+  workflow_ols_score_nc %>%
+  finalize_workflow(parameters_tuned_ols_score_nc)
 
 # LAST FIT ----
 
@@ -501,9 +515,9 @@ fit_rf_score <-
   finalized_workflow_rf_score %>% 
   last_fit(data_split)
 
-### Rank ----
-fit_rf_rank <-
-  finalized_workflow_rf_rank %>% 
+## Without country ----
+fit_rf_score_nc <-
+  finalized_workflow_rf_score_nc %>%
   last_fit(data_split)
 
 ## XG Boost ----
@@ -513,9 +527,9 @@ fit_xg_score <-
   finalized_workflow_xg_score %>% 
   last_fit(data_split)
 
-### Rank ----
-fit_xg_rank <-
-  finalized_workflow_xg_rank %>% 
+## Without country ----
+fit_xg_score_nc <-
+  finalized_workflow_xg_score_nc %>%
   last_fit(data_split)
 
 
@@ -526,9 +540,9 @@ fit_ols_score <-
   finalized_workflow_ols_score %>% 
   last_fit(data_split)
 
-### Rank ----
-fit_ols_rank <-
-  finalized_workflow_ols_rank %>% 
+### Without country ----
+fit_ols_score_nc <-
+  finalized_workflow_ols_score_nc %>% 
   last_fit(data_split)
 
 # PERFORMANCE ----
@@ -541,11 +555,11 @@ performance_rf_score <-
   collect_metrics() %>% 
   mutate(algorithm = "Random Forest for score")
 
-### Rank ----
-performance_rf_rank <- 
-  fit_rf_rank %>% 
-  collect_metrics() %>% 
-  mutate(algorithm = "Random Forest for rank")
+## Without country ----
+performance_rf_score_nc <-
+  fit_rf_score_nc %>%
+  collect_metrics() %>%
+  mutate(algorithm = "Random Forest for score without country")
 
 ## XG Boost ----
 
@@ -555,11 +569,11 @@ performance_xg_score <-
   collect_metrics() %>%
   mutate(algorithm = "XG Boost for score")
 
-### Rank ----
-performance_xg_rank <- 
-  fit_xg_rank %>% # for_performance(fit_xg) %>% 
+## Without country ----
+performance_xg_score_nc <-
+  fit_xg_score_nc %>% # for_performance(fit_xg) %>%
   collect_metrics() %>%
-  mutate(algorithm = "XG Boost for rank")
+  mutate(algorithm = "XG Boost for score without country")
 
 ## Linear regression ----
 
@@ -569,20 +583,20 @@ performance_ols_score <-
   collect_metrics() %>% 
   mutate(algorithm = "Linear regression for score")
 
-### Rank ----
-performance_ols_rank <- 
-  fit_ols_rank %>% 
-  collect_metrics() %>% 
-  mutate(algorithm = "Linear regression for rank")
+## Without country ----
+performance_ols_score_nc <-
+  fit_ols_score_nc %>%
+  collect_metrics() %>%
+  mutate(algorithm = "Linear regression for score without country")
 
 # COMPARE PERFORMANCE OF DIFFERENT ALGORITHMS AND RECIPES ----
 
 bind_rows(performance_rf_score,
-          performance_rf_rank,
+          performance_rf_score_nc,
           performance_xg_score,
-          performance_xg_rank,
+          performance_xg_score_nc,
           performance_ols_score,
-          performance_ols_rank) %>% 
+          performance_ols_score_nc) %>%
   select(-.estimator,
          -.config) %>% 
   pivot_wider(names_from = .metric,
@@ -600,8 +614,8 @@ prediction_rf_score <-
   collect_predictions() %>%
   mutate(algorithm = "Random Forest for score")
 ### Rank ----
-prediction_rf_rank <- 
-  fit_rf_rank %>% 
+prediction_rf_score_nc <- 
+  fit_rf_score_nc %>% 
   collect_predictions() %>%
   mutate(algorithm = "Random Forest for rank")
 
@@ -613,8 +627,8 @@ prediction_xg_score <-
   mutate(algorithm = "XG Boost for score") 
 
 ### Rank ----
-prediction_xg_rank <-
-  fit_xg_rank %>%
+prediction_xg_score_nc <-
+  fit_xg_score_nc %>%
   collect_predictions() %>%
   mutate(algorithm = "XG Boost for rank")
 
@@ -626,8 +640,8 @@ prediction_ols_score <-
   mutate(algorithm = "Linear regression for score")
 
 ### Rank ----
-prediction_ols_rank <- 
-  fit_ols_rank %>% 
+prediction_ols_score_nc <- 
+  fit_ols_score_nc %>% 
   collect_predictions() %>%
   mutate(algorithm = "Linear regression for rank")
 
@@ -669,9 +683,9 @@ rf_score_plot <-
   theme_bw()
 
 rf_rank_plot <- 
-  prediction_rf_rank %>% 
-  select(.row, `2022`, .pred) %>%
-  ggplot(aes(x = `2022`,
+  prediction_rf_score_nc %>% 
+  select(.row, `TOTAL SCORE`, .pred) %>%
+  ggplot(aes(x = `TOTAL SCORE`,
              y = .pred)
   ) + 
   geom_point(color = "dodgerblue",
@@ -699,9 +713,9 @@ xg_score_plot <-
   theme_bw()
 
 xg_rank_plot <- 
-  prediction_rf_rank %>% 
-  select(.row, `2022`, .pred) %>%
-  ggplot(aes(x = `2022`,
+  prediction_rf_score_nc %>% 
+  select(.row, `TOTAL SCORE`, .pred) %>%
+  ggplot(aes(x = `TOTAL SCORE`,
              y = .pred)
   ) + 
   geom_point(color = "dodgerblue",
@@ -713,9 +727,9 @@ xg_rank_plot <-
        title = "Predicting city work-life balance rank using XG") + 
   theme_bw()
 
-grid.arrange(rf_score_plot, rf_rank_plot, 
-             xg_score_plot, xg_rank_plot,
-             ncol = 2)
+# grid.arrange(rf_score_plot, rf_rank_plot, 
+#              xg_score_plot, xg_rank_plot,
+#              ncol = 2)
 
 ols_score_plot <- 
   prediction_ols_score %>% 
@@ -734,9 +748,9 @@ ols_score_plot <-
 
 
 ols_rank_plot <- 
-  prediction_ols_rank %>% 
-  select(.row, `2022`, .pred) %>%
-  ggplot(aes(x = `2022`,
+  prediction_ols_score_nc %>% 
+  select(.row, `TOTAL SCORE`, .pred) %>%
+  ggplot(aes(x = `TOTAL SCORE`,
              y = .pred)
   ) + 
   geom_point(color = "dodgerblue",
