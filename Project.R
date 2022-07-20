@@ -227,7 +227,7 @@ data_test <-
   testing() # 20%
 
 # Recipe for prediction ----
-## Recipe 1: with country ----
+## Recipe 1: without country but with polynomial predictors----
 recipe_score <- 
   recipe(formula = `TOTAL SCORE`~ .,
          data = data_train) %>% 
