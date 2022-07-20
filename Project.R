@@ -1,8 +1,8 @@
 # Install Packages ----
 
 devtools::install_github("https://github.com/Mikata-Project/ggthemr.git")
-# install.packages("parsnip")
-# library(parsnip)
+install.packages("parsnip")
+library(parsnip)
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
                skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
@@ -47,7 +47,7 @@ city_rank_delta
 # Diverging bar plot of city rank delta
 city_rank_delta_plot <- 
   ggplot(data = city_rank_delta,
-       aes(x = reorder(`City`, delta), y = delta)) +
+         aes(x = reorder(`City`, delta), y = delta)) +
   geom_bar(stat = "identity") + 
   geom_bar(data = subset(city_rank_delta, delta > 0),
            aes(`City`, delta),
@@ -65,7 +65,7 @@ city_rank_delta_plot <-
             hjust = -0.1,
             size = 3) +
   coord_flip() +
-  theme_fivethirtyeight() +
+  theme_bw() +
   theme(axis.text.y = element_blank())
 
 city_rank_delta_plot
@@ -99,14 +99,16 @@ skim(after_vacations)
 
 # Convert all other percentage characters to numeric values
 cleaned_data <- after_vacations %>% 
+  select(-`City`, -`2021`) %>%
   mutate(across(c(`Inflation`, 
                   `Overworked Population`,
                   `Remote Jobs`,
                   `Multiple Jobholders`
-                  ), 
-                  convert_to_percentage)
-         )  # %>% try without getting rid of the NAs
- # na.omit()
+  ), 
+  convert_to_percentage) %>%
+    mutate(Country = as.factor(Country))
+  )  # %>% try without getting rid of the NAs
+# na.omit()
 
 #THE DATA IS NOW CLEEEEEAAAANNNN
 skim(cleaned_data)
@@ -115,23 +117,25 @@ skim(cleaned_data)
 
 # THE REAL INTELLIGENCE STARTS NOW ----
 
-# RECIPE ----
+# RECIPE FOR EDA----
 
 ## Recipe for TOTAL SCORE----
-recipe_score <- 
+recipe_eda <- 
   recipe(formula = `TOTAL SCORE`~ .,
          data = cleaned_data) %>% 
-  step_rm(rowid, City, `2021`, Country, `2022`) %>% 
+  step_rm(rowid, `2022`) %>%
   step_impute_knn(`Vacations Taken (Days)`) %>%
-  step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
+  step_normalize(all_numeric_predictors()) %>% # setting Ms at 0; SDs at 1
+  step_dummy(Country)
 
 ## Recipe for 2022 rank----
-recipe_rank <- 
-  recipe(formula = `2022`~ .,
-         data = cleaned_data) %>% 
-  step_rm(rowid, City, `2021`, Country, `TOTAL SCORE`) %>% 
-  step_impute_knn(`Vacations Taken (Days)`) %>%
-  step_normalize(all_numeric_predictors()) # setting Ms at 0; SDs at 1
+# recipe_rank <- 
+#   recipe(formula = `2022`~ .,
+#          data = cleaned_data) %>% 
+#   step_rm(rowid, `TOTAL SCORE`) %>% 
+#   step_impute_knn(`Vacations Taken (Days)`) %>%
+#   step_normalize(all_numeric_predictors()) %>% # setting Ms at 0; SDs at 1
+#   step_dummy(Country)
 
 # recipe_score %>% tidy()
 
@@ -143,13 +147,15 @@ baked_score <-
   prep() %>% # for calculation
   bake(cleaned_data) 
 
-## Baking for rank ----
-baked_rank <-
-  recipe_rank %>%
-  prep() %>%
-  bake(cleaned_data)
+glimpse(baked_score)
 
-baked_rank
+## Baking for rank ----
+# baked_rank <-
+#   recipe_rank %>%
+#   prep() %>%
+#   bake(cleaned_data)
+
+# baked_rank
 
 # CORRELATION ----
 
@@ -163,24 +169,23 @@ baked_score %>%
          var2 = column2,
          CORR = estimate) %>%
   mutate(absCORR = abs(CORR)) %>%
-  filter(var1 == "TOTAL SCORE" | var2 == "TOTAL SCORE") %>%
+  # filter(var1 == "TOTAL SCORE" | var2 == "TOTAL SCORE") %>%
   DT::datatable()  
 
 ## Correlation for rank ----
-baked_rank %>% 
-  as.matrix(.) %>%
-  rcorr(.) %>%
-  tidy(.) %>%
-  rename(var1 = column1,
-         var2 = column2,
-         CORR = estimate) %>%
-  mutate(absCORR = abs(CORR)) %>%
-  filter(var1 == "2022" | var2 == "2022") %>%
-  DT::datatable()  
+# baked_rank %>% 
+#   as.matrix(.) %>%
+#   rcorr(.) %>%
+#   tidy(.) %>%
+#   rename(var1 = column1,
+#          var2 = column2,
+#          CORR = estimate) %>%
+#   mutate(absCORR = abs(CORR)) %>%
+#   filter(var1 == "2022" | var2 == "2022") %>%
+#   DT::datatable()  
 
 
-# test code: check how a variable varies with the output
-# then decide on a regression model output
+# Feature Engineering ----
 
 cleaned_data %>% 
   ggplot(aes(x = `Inclusivity & Tolerance`, y = `TOTAL SCORE`)) +
@@ -219,6 +224,15 @@ data_test <-
   data_split %>% 
   testing() # 20%
 
+# Recipe for prediction ----
+
+recipe_score <- 
+  recipe(formula = `TOTAL SCORE`~ .,
+         data = cleaned_data) %>% 
+  step_rm(rowid, `2022`) %>%
+  step_impute_knn(`Vacations Taken (Days)`) %>%
+  step_normalize(all_numeric_predictors()) %>% # setting Ms at 0; SDs at 1
+  step_dummy(Country)
 
 # CREATE MODELS ----
 ## Random Forest ----
@@ -316,6 +330,7 @@ cv_xg_rank <-
   vfold_cv(v = 10,
            strata = `2022`)
 
+
 doParallel::registerDoParallel()
 
 ## cross validation for Random Forest ----
@@ -342,14 +357,13 @@ tuned_rf_rank <-
             grid = 3:10)
 
 ## XG Boost tuning ----
-# Moved package install to top of script
-# install.packages("finetune")
-# library(finetune)
+install.packages("finetune")
+library(finetune)
 
 # set.seed(22201703)
-# Moved package install to top of script
-# install.packages("xgboost") # Extreme Gradient Boosting
-# library(xgboost)
+
+install.packages("xgboost") # Extreme Gradient Boosting
+library(xgboost)
 
 set.seed(22201702)
 
@@ -512,7 +526,7 @@ fit_ols_score <-
   finalized_workflow_ols_score %>% 
   last_fit(data_split)
 
-### Score ----
+### Rank ----
 fit_ols_rank <-
   finalized_workflow_ols_rank %>% 
   last_fit(data_split)
@@ -623,18 +637,18 @@ cleaned_data <-
   cleaned_data %>% 
   tibble::rowid_to_column(".row")
 
-a <- data_test %>%
+data_test_with_row <- data_test %>%
   rename(.row = rowid)
 
 data_with_predictions <-
-  a %>% 
-  inner_join(prediction_rf_score,
-             prediction_rf_rank,
-             prediction_xg_score,
-             prediction_xg_rank,
-             prediction_ols_score,
-             prediction_ols_rank,
-             by = ".row")
+  data_test_with_row %>%
+  inner_join(#prediction_rf_score %>% select(.row, .pred),
+    # prediction_rf_rank %>% select(.row, .pred),
+    # prediction_xg_score %>% select(.row, .pred),
+    # prediction_xg_rank %>% select(.row, .pred),
+    prediction_ols_score %>% select(.row, .pred),
+    # prediction_ols_rank %>% select(.row, .pred),
+    by = ".row")
 
 # TODO: Create a data frame comparing the outputs of all models with the original output.
 
@@ -740,4 +754,3 @@ grid.arrange(rf_score_plot, rf_rank_plot,
              ncol = 2)
 
 # Results??
-
