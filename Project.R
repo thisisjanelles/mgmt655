@@ -768,3 +768,106 @@ grid.arrange(rf_score_plot, rf_rank_plot,
              ncol = 2)
 
 # Results??
+
+
+
+# SHINY APP ----
+model <- 
+  readRDS("/Users/janelle/Development/mgmt655/xg_upsample.rds")
+
+model$pre$mold$predictors %>% 
+  colnames() %>% 
+  as_tibble()
+
+model_rf <- 
+  readRDS("/Users/janelle/Development/mgmt655/rf_rose.rds")
+
+model_rf$pre$mold$predictors %>% 
+  colnames() %>% 
+  as_tibble()
+
+# User Interface ----
+
+ui <- 
+  dashboardPage(skin = "purple", # Page
+                dashboardHeader(title = "City Work/Life Balance Score Prediction App",
+                                titleWidth = 320), # Header
+                dashboardSidebar( # Sidebar
+                  menuItem(
+                    "Work/Life Score Prediction App",
+                    tabName = "score_tab",
+                    icon = icon("city")
+                  )
+                ), 
+                dashboardBody(
+                  tabItem(
+                    tabName = "score_tab",
+                    # Box containing the prediction results
+                    box(valueBoxOutput("score_prediction") 
+                    ),
+                    # Sliders
+                    box(sliderInput("vacations",
+                                    label = "Minimum Vacations Offered (Days)",
+                                    min = 0.00,
+                                    max = 30.00,
+                                    value = 10.00)
+                    ),
+                    box(sliderInput("unemployment",
+                                    label = "Unemployment",
+                                    min = 50.00,
+                                    max = 100.00,
+                                    value = 94.00)
+                    )
+                  ) # Body
+                )
+  )
+
+# Server ----
+
+server <- function(input, output)
+{
+  output$score_prediction <- 
+    renderValueBox({
+      
+      prediction <- 
+        predict(
+          model_rf,
+          tibble(
+            "age" = input$age,
+            "avg_glucose_level" = input$avg_glucose_level,
+            #"bmi" = input$bmi
+          )
+        )
+      
+      prediction_prob <- 
+        predict(
+          model_rf,
+          tibble(
+            "vacations" = input_data$`Minimum Vacations Offered (Days)`,
+            "unemployment" = input_data$Unemployment,
+          ),
+          type = "prob"
+        ) %>% 
+        select(.pred_1)
+      
+      prediction_statement <- 
+        if_else(prediction$.pred_class == "1", 
+                "Yes", "No")
+      
+      prediction_visual <- 
+        if_else(prediction$.pred_class == "1",
+                "red", "green")
+      
+      valueBox(
+        value = paste0(round(prediction_prob$.pred_1*100, 1), "%"),
+        subtitle = paste0("Will this individual have stroke? ",
+                          prediction_statement),
+        color = prediction_visual
+      )
+      
+    })
+}
+
+# Run ----
+
+shinyApp(ui, server)
