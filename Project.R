@@ -232,6 +232,8 @@ recipe_score <-
   recipe(formula = `TOTAL SCORE`~ .,
          data = data_train) %>% 
   step_rm(rowid, `Country`, `Affordability`) %>%
+  step_BoxCox(`Inflation`,
+              `Minimum Vacations Offered (Days)`) %>%
   step_impute_knn(`Vacations Taken (Days)`) %>%
   step_normalize(all_numeric_predictors()) %>% # setting Ms at 0; SDs at 1
   step_poly(`Access to Mental Healthcare`, `Air Quality`, `Wellness and Fitness`,
@@ -553,13 +555,13 @@ fit_ols_score_nc <-
 performance_rf_score <- 
   fit_rf_score %>% 
   collect_metrics() %>% 
-  mutate(algorithm = "Random Forest for score")
+  mutate(algorithm = "Random Forest for score with poly")
 
 ## Without country ----
 performance_rf_score_nc <-
   fit_rf_score_nc %>%
   collect_metrics() %>%
-  mutate(algorithm = "Random Forest for score without country")
+  mutate(algorithm = "Random Forest for score")
 
 ## XG Boost ----
 
@@ -567,13 +569,13 @@ performance_rf_score_nc <-
 performance_xg_score <- 
   fit_xg_score %>% # for_performance(fit_xg) %>% 
   collect_metrics() %>%
-  mutate(algorithm = "XG Boost for score")
+  mutate(algorithm = "XG Boost for score with poly")
 
 ## Without country ----
 performance_xg_score_nc <-
   fit_xg_score_nc %>% # for_performance(fit_xg) %>%
   collect_metrics() %>%
-  mutate(algorithm = "XG Boost for score without country")
+  mutate(algorithm = "XG Boost for score")
 
 ## Linear regression ----
 
@@ -581,13 +583,13 @@ performance_xg_score_nc <-
 performance_ols_score <- 
   fit_ols_score %>% 
   collect_metrics() %>% 
-  mutate(algorithm = "Linear regression for score")
+  mutate(algorithm = "Linear regression for score with poly")
 
 ## Without country ----
 performance_ols_score_nc <-
   fit_ols_score_nc %>%
   collect_metrics() %>%
-  mutate(algorithm = "Linear regression for score without country")
+  mutate(algorithm = "Linear regression for score")
 
 # COMPARE PERFORMANCE OF DIFFERENT ALGORITHMS AND RECIPES ----
 
