@@ -1,3 +1,4 @@
+# Packages ----
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
                skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
@@ -9,7 +10,7 @@ pacman::p_load(tidyverse, lubridate,
                finetune, xgboost
 )
 
-# Read Dataset ----
+# Read Dataset & Clean Data ----
 input_data <- read_csv("AB_NYC_2019.csv")
 skim(input_data)
 view(input_data)
@@ -25,9 +26,8 @@ cleaned_data <- input_data %>%
            # %>% try without getting rid of the NAs
   # na.omit()
 
-#THE DATA IS NOW CLEEEEEAAAANNNN
+#Check
 skim(cleaned_data)
-
 view(cleaned_data)
 
 
@@ -61,7 +61,7 @@ glimpse(baked_eda)
 
 # CORRELATION ----
 
-## Correlation for score ----
+## Correlation score ----
 
 corr_table <- baked_eda %>% 
   as.matrix(.) %>%
