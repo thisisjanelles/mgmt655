@@ -1,7 +1,7 @@
 ---
-title: "R Markdown Template for Your Business Analytics Project"
+title: "Predicting Airbnb Prices in New York City"
 subtitle: "Data Science Project for MGMT 655 Business Analytics for Decision Making"
-author: "Your Name"
+author: "Kushal Agarwal, Janelle Ashley Sy, Park Suel Ki, Sanath Manjunath Nadig"
 date: "26 July 2022"
 output:
   html_document:
@@ -59,16 +59,19 @@ code { color: rgb(205,79,57) }
 > Load packages
 
 ```{r Load Package}
-pacman::p_load(tidyverse, lubridate, 
-               tidymodels, 
-               skimr, GGally, ggstatsplot,
-               usemodels, doParallel, vip, 
-               shiny, shinydashboard, DT, 
-               ggthemes, ggthemr, 
-               Hmisc, broom, janitor)
+pacman::p_load(tidyverse, lubridate,
+               tidymodels,
+               skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
+               usemodels, ranger, doParallel, vip,
+               DT, plotly,
+               ggthemes, scales, ggthemr, ggfortify, ggstance, ggalt,
+               broom, modelr,
+               shiny, shinydashboard,
+               finetune, xgboost
+)
 ```
 
-> Data was sourced from [Kaggle](https://www.kaggle.com/fedesoriano/stroke-prediction-dataset)
+> Data was sourced from [Kaggle](https://www.kaggle.com/datasets/dgomonov/new-york-city-airbnb-open-data)
 
 Variable (Feature) Name    | Description
 :--------------------------|:--------------------------------------------------------------------
