@@ -1,7 +1,7 @@
 ---
 title: "Predicting Airbnb Prices in New York City"
 subtitle: "Data Science Project for MGMT 655 Business Analytics for Decision Making"
-author: "Kushal Agarwal, Janelle Ashley Sy, Park Suel Ki, Sanath Manjunath Nadig"
+author: "Kushal AGARWAL, Janelle Ashley SY, PARK Suel Ki, Sanath Manjunath NADIG"
 date: "26 July 2022"
 output:
   html_document:
