@@ -129,7 +129,7 @@ skim(strokedataset)
 > Data set is highly imbalanced because stroke is a rare event. Balancing is required before applying Machine Learning Algorithm.
 
 ```{r Stroke Count}
-ggthemr("fresh")
+#ggthemr("fresh")
 
 strokedataset %>%
   mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%

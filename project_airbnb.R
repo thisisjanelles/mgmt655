@@ -22,9 +22,7 @@ cleaned_data <- input_data %>%
                   room_type,
                   neighbourhood), as.factor)) %>%
   mutate(log10_price = log10(price)) %>%
-  select(-price) # %>%
-# %>% try without getting rid of the NAs
-# na.omit()
+  select(-price)
 
 #Check
 skim(cleaned_data)
