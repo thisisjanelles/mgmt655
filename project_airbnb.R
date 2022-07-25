@@ -14,6 +14,8 @@ pacman::p_load(tidyverse, lubridate,
 ## Read Dataset & Clean Data ----
 input_data <- read_csv("AB_NYC_2019.csv")
 
+skim(input_data)
+
 cleaned_data <- input_data %>% 
   filter(price != 0) %>%
   select(-name, -host_name, -host_id, -last_review) %>%
@@ -25,6 +27,50 @@ cleaned_data <- input_data %>%
   drop_na()
 
 skim(cleaned_data)
+
+# UNIVARIATE ANALYSIS ----
+
+## Price ----
+ggthemr("fresh")
+
+cleaned_data %>%
+  ggplot() +
+  geom_density(aes(x = log10_price)) +
+  geom_vline(aes(xintercept = mean(log10_price)),
+             linetype = "dashed",
+             color = "tomato3") +
+  annotate(geom = "text",
+           color = "tomato3") +
+  labs(title = "Log Price per Night of Airbnbs in New York City",
+       y = "Density",
+       x = "Price in USD")
+
+## Neighbourhood Group ----
+cleaned_data %>%
+  ggplot(aes(neighbourhood_group)) +
+  geom_bar(aes(y = (..count..)/sum(..count..))) +
+  scale_y_continuous(labels = percent) +
+  geom_label(aes(label = percent((..count..)/sum(..count..)),
+                 y = (..count..)/sum(..count..)), 
+             stat = "count",
+             size = 5,
+             fill = "white") +
+  labs(title = "Percentage of Airbnb Listings by Neighborhood Group",
+       x = "Neighborhood Group",
+       y = "Percentage")
+
+## Number of Reviews ----
+cleaned_data %>%
+  ggplot() +
+  geom_density(aes(x = number_of_reviews)) +
+  geom_vline(aes(xintercept = mean(number_of_reviews)),
+             linetype = "dashed",
+             color = "tomato3") +
+  annotate(geom = "text",
+           color = "tomato3") +
+  labs(title = "Number of Reviews on an Airbnb Listing",
+       x = "Number of Reviews",
+       y = "")
 
 # RECIPE FOR EDA ----
 
@@ -675,6 +721,10 @@ model_final$pre$mold$predictors %>%
   colnames() %>% 
   as_tibble()
 
+# Get list of neighbourhoods
+neighbourhood_list <- 
+  unique(c(cleaned_data$neighbourhood))
+
 ## User Interface ----
 
 ui <- 
@@ -700,15 +750,13 @@ ui <-
                                     choices = list("Brooklyn",
                                                    "Manhattan",
                                                    "Queens",
-                                                   "Staten Island")
+                                                   "Staten Island",
+                                                   "Bronx")
                                     )
                     ),
                     box(selectInput("neighbourhood",
                                     label = "Neighbourhood",
-                                    choices = list("Bushwick",
-                                                   "Harlem",
-                                                   "Williamsburg",
-                                                   "Other")
+                                    choices = neighbourhood_list
                                     )
                     ),
                     box(selectInput("room_type",
@@ -733,20 +781,20 @@ ui <-
                     ),
                     box(sliderInput("minimum_nights",
                                     label = "Minimum Nights",
-                                    min = 0.00,
+                                    min = 1.00,
                                     max = 1250.00,
                                     value = 7.03)
                     ),
                     box(sliderInput("number_of_reviews",
                                     label = "Number of Reviews",
-                                    min = 0.00,
-                                    max = 630.00,
+                                    min = 1.00,
+                                    max = 629.00,
                                     value = 23.28)
                     ),
                     box(sliderInput("reviews_per_month",
                                     label = "Reviews per Month",
-                                    min = 0.00,
-                                    max = 60.00,
+                                    min = 0.01,
+                                    max = 58.50,
                                     value = 1.37)
                     ),
                     box(sliderInput("availability_365",
