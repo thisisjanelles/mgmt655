@@ -75,22 +75,27 @@ pacman::p_load(tidyverse, lubridate,
 
 > Data was sourced from [Kaggle](https://www.kaggle.com/datasets/dgomonov/new-york-city-airbnb-open-data)
 
-Variable (Feature) Name    | Description
-:--------------------------|:--------------------------------------------------------------------
-`stroke`                   | `1` if the patient had a stroke or `0` if not
-gender                     | "Male", "Female" or "Other"
-age                        | Age of the patient
-hypertension               | 0 if the patient doesn't have hypertension, 1 if the patient has hypertension
-heart_disease              | 0 if the patient doesn't have any heart diseases, 1 if the patient has a heart disease
-ever_married               | "No" or "Yes"
-work_type                  | "Children", "Govt_job", "Never_worked", "Private" or "Self-employed"                       
-Residence_type             | "Rural" or "Urban"
-avg_glucose_level          | Average glucose level in blood
-bmi                        | Body mass index    
-smoking_status             | "formerly smoked", "never smoked", "smokes" or "Unknown"       
+Variable (Feature) Name           | Description
+:---------------------------------|:--------------------------------------------------------------------
+id                                | # TO DO DESCRIPTIONS
+name                              | 
+host_id                           |
+host_name                         |
+neighbourhood_group               | 
+neighbourhood                     | 
+latitude                          |
+longitude                         |
+room_type                         |              
+`price`                           |
+minimum_nights                    | 
+number_of_reviews                 | 
+last_review                       | 
+reviews_per_month                 |
+calculated_host_listings_count    |
+availability_365                  |
 
 ```{r Import Data}
-strokedataset <- read_csv("https://talktoroh.squarespace.com/s/stroke.csv")
+input_data <- read_csv("AB_NYC_2019.csv")
 ```
 
 ```{r Data table}
@@ -129,7 +134,7 @@ skim(strokedataset)
 > Data set is highly imbalanced because stroke is a rare event. Balancing is required before applying Machine Learning Algorithm.
 
 ```{r Stroke Count}
-#ggthemr("fresh")
+ggthemr("fresh")
 
 strokedataset %>%
   mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
@@ -1034,7 +1039,7 @@ save.image("Rmarkdown.RData")
 
 ## Contribution Statement
 
-> The `pRoject` team put together by Prof. Roh (randomly) worked together to deliver the assignment. Together we defined the problem, identifed the data source and segregated tasks to deliver the final output.
+> The `pRoject` team worked together to deliver the assignment. Together we defined the problem, identifed the data source and segregated tasks to deliver the final output.
 
    ***R-script** was led by `Sanath Manjunath Nadig`
 

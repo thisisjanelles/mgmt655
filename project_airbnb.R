@@ -1,4 +1,5 @@
-# Packages ----
+# SETUP ----
+## Packages ----
 pacman::p_load(tidyverse, lubridate,
                tidymodels,
                skimr, GGally, ggstatsplot, Hmisc, jtools, huxtable, interactions,
@@ -10,7 +11,7 @@ pacman::p_load(tidyverse, lubridate,
                finetune, xgboost
 )
 
-# Read Dataset & Clean Data ----
+## Read Dataset & Clean Data ----
 input_data <- read_csv("AB_NYC_2019.csv")
 skim(input_data)
 view(input_data)
@@ -22,21 +23,23 @@ cleaned_data <- input_data %>%
                   room_type,
                   neighbourhood), as.factor)) %>%
   mutate(log10_price = log10(price)) %>%
-  select(-price)
+  select(-price) %>%
+  drop_na()
+# %>% try without getting rid of the NAs
+# na.omit()
 
-#Check
 skim(cleaned_data)
 view(cleaned_data)
 
-# RECIPE FOR EDA----
+# RECIPE FOR EDA ----
 
-## Recipe for log10_price----
+## Recipe for log10_price ----
 recipe_eda <- 
   recipe(formula = log10_price ~ .,
          data = cleaned_data) %>% 
   step_rm(id) %>%
   step_other(neighbourhood, threshold = 0.05) %>%
-  step_impute_knn(reviews_per_month) %>%
+  # step_impute_knn(reviews_per_month) %>%
   step_normalize(all_numeric_predictors()) %>%
   step_dummy(all_nominal_predictors())
 
@@ -69,10 +72,9 @@ corr_table <- baked_eda %>%
          CORR = estimate) %>%
   mutate(absCORR = abs(CORR)) %>%
   filter(var1 == "log10_price" | var2 == "log10_price") %>%
-  DT::datatable()  
+  DT::datatable()
 
 corr_table
-
 
 # SPLITTING ----
 
@@ -84,13 +86,14 @@ data_split <-
 
 data_split
 
-## CREATE TRAIN AND TEST SETS
+## Create Training and Testing Sets ----
 
 data_train <- # training(rent_split)
   data_split %>% 
   training() # 80%
 
-#TESTINNGGGG ----
+# TESTING ----
+# Create Smaller Set to Save on Run Time
 data_train <- data_train %>%
   sample_n(5000)
 
@@ -98,44 +101,51 @@ data_test <-
   data_split %>% 
   testing() # 20%
 
-# Recipe for prediction ----
-## Recipe 1: Price with BoxCox inputs----
+# RECIPE FOR PREDICTION ----
+## Recipe 1: Price with BoxCox inputs ----
 recipe_price_box <- 
   recipe(formula = `log10_price`~ .,
-         data = data_train) %>% 
+         data = data_train) %>%
   step_rm(id) %>%
   step_other(neighbourhood, threshold = 0.05) %>%
   step_BoxCox(calculated_host_listings_count) %>%
-  step_impute_knn(reviews_per_month) %>%
+  # step_impute_knn(reviews_per_month) %>%
   step_normalize(all_numeric_predictors()) %>% 
   step_dummy(all_nominal_predictors())
 
-## Recipe for price without BoxCox inputs ----
+## Recipe 2: Price without BoxCox inputs ----
 recipe_price <- 
-  recipe(formula = `log10_price`~ .,
+  recipe(formula = `log10_price`~ 
+           neighbourhood_group + neighbourhood + latitude + longitude +
+           room_type + minimum_nights + number_of_reviews + 
+           reviews_per_month + availability_365,
          data = data_train) %>% 
-  step_rm(id) %>%
+  # recipe(formula = `log10_price`~ .,
+  #        data = data_train) %>% 
+  # step_rm(id) %>%
   step_other(neighbourhood, threshold = 0.05) %>%
-  step_impute_knn(reviews_per_month) %>%
-  # step_impute_knn(`Vacations Taken (Days)`) %>%
+  step_novel(neighbourhood_group, neighbourhood, room_type) %>% 
+  step_unknown(neighbourhood_group, neighbourhood, room_type) %>% 
+  # step_impute_knn(reviews_per_month) %>%
   step_normalize(all_numeric_predictors()) %>% 
   step_dummy(all_nominal_predictors())
 
 # BAKING ----
-## Baking for price with box cox ----
+## Baking for price with BoxCox ----
 baked_price_box <- 
   recipe_price_box %>% # plan 
   prep() %>% # for calculation
-  bake(data_train) 
+  bake(data_train)
+  # bake(new_data = NULL)
 
 glimpse(baked_price_box)
 
-
-## Baking for price without box cox ----
+## Baking for price without BoxCox ----
 baked_price <- 
   recipe_price %>% # plan 
   prep() %>% # for calculation
   bake(data_train) 
+  # bake (new_data = NULL)
 
 glimpse(baked_price)
 
@@ -148,7 +158,6 @@ rf_model <-
   set_engine("ranger",
              importance = "permutation") %>% 
   set_mode("regression")
-
 
 ## XG Boost ----
 
@@ -163,31 +172,30 @@ XG_BOOST <- # extreme gradient boosting
   set_engine("xgboost") %>% 
   set_mode("regression")
 
-## Linear Regression
+## Linear Regression ----
 ols_model <- linear_reg() %>%
   set_engine("lm") %>%
   set_mode("regression")
 
 # CREATE WORKFLOWS ----
 
-## Random Forest for price with box----
+## Random Forest for price with BoxCox ----
 workflow_rf_price_box <-
   workflow() %>% 
   add_recipe(recipe_price_box) %>% 
   add_model(rf_model)
 
-## Random Forest with price----
+## Random Forest with price ----
 workflow_rf_price <-
   workflow() %>% 
   add_recipe(recipe_price) %>% 
   add_model(rf_model)
 
-## XG Boost for price with box ----
+## XG Boost for price with BoxCox ----
 workflow_xg_price_box <- 
   workflow() %>% 
   add_recipe(recipe_price_box) %>% 
   add_model(XG_BOOST)
-
 
 ## XG Boost with price ----
 workflow_xg_price <- 
@@ -195,7 +203,7 @@ workflow_xg_price <-
   add_recipe(recipe_price) %>% 
   add_model(XG_BOOST)
 
-## Linear regression for price with box ----
+## Linear regression for price with BoxCox ----
 workflow_ols_price_box <- 
   workflow() %>% 
   add_recipe(recipe_price_box) %>% 
@@ -209,7 +217,7 @@ workflow_ols_price <-
 
 # CROSS VALIDATION ----
 
-## cross validation for Random Forest ----
+## Cross validation for Random Forest ----
 set.seed(22062802)
 
 cv_rf <- 
@@ -218,19 +226,19 @@ cv_rf <-
 
 cv_rf
 
-## cross validation for XG BOOST ----
+## Cross validation for XG BOOST ----
 
-### score ----
+### Score ----
 set.seed(22201701)
 
 cv_xg <- 
   data_train %>% 
   vfold_cv(v = 10,
-           strata = log10_price)# put output variable name here
+           strata = log10_price) # output variable
 
 cv_xg
 
-## cross validation for Linear regression ----
+## Cross validation for Linear regression ----
 set.seed(22062802)
 
 cv_ols <- 
@@ -243,7 +251,7 @@ doParallel::registerDoParallel()
 
 # TUNING ----
 ## Random Forest score tuning ----
-### price with box ----
+### Price with BoxCox ----
 tuned_rf_price_box <-
   workflow_rf_price_box %>% 
   tune_grid(resamples = cv_rf,
@@ -274,7 +282,7 @@ grid_xg <-
     size = 20
   )
 
-### Price with box ----
+### Price with BoxCox ----
 tuned_xg_price_box <- 
   workflow_xg_price_box %>% 
   tune_grid(resamples = cv_xg,
@@ -291,13 +299,13 @@ tuned_xg_price <-
   )
 
 ## OLS Tuning ----
-### Price with box ----
+### Price with BoxCox ----
 tuned_ols_price_box <-
   workflow_ols_price_box %>%
   tune_grid(resamples = cv_ols,
             grid = 3:10)
 
-### price withouty boxcox ----
+### Price ----
 tuned_ols_price <-
   workflow_ols_price %>%
   tune_grid(resamples = cv_ols,
@@ -313,19 +321,19 @@ parameters_tuned_rf_price_box <-
   tuned_rf_price_box %>% 
   select_best(metric = "rmse")
 
-### price ----
+### Price ----
 parameters_tuned_rf_price <- 
   tuned_rf_price %>% 
   select_best(metric = "rmse")
 
 ## XG Boost parameters ----
 
-### Price with boxcox ----
+### Price with BoxCox ----
 parameters_tuned_xg_price_box <-
   tuned_xg_price_box %>%
   select_best(metric = "rmse")
 
-### price ----
+### Price ----
 parameters_tuned_xg_price <-
   tuned_xg_price %>%
   select_best(metric = "rmse")
@@ -337,7 +345,7 @@ parameters_tuned_ols_price_box <-
   tuned_ols_price_box %>% 
   select_best(metric = "rmse")
 
-### price ----
+### Price ----
 parameters_tuned_ols_price <- 
   tuned_ols_price %>% 
   select_best(metric = "rmse")
@@ -351,7 +359,7 @@ finalized_workflow_rf_price_box <-
   workflow_rf_price_box %>% 
   finalize_workflow(parameters_tuned_rf_price_box)
 
-### price ----
+### Price ----
 finalized_workflow_rf_price <-
   workflow_rf_price %>% 
   finalize_workflow(parameters_tuned_rf_price)
@@ -363,7 +371,7 @@ finalized_workflow_xg_price_box <-
   workflow_xg_price_box %>% 
   finalize_workflow(parameters_tuned_xg_price_box)
 
-### price ----
+### Price ----
 finalized_workflow_xg_price <- 
   workflow_xg_price %>% 
   finalize_workflow(parameters_tuned_xg_price)
@@ -375,11 +383,10 @@ finalized_workflow_ols_price_box <-
   workflow_ols_price_box %>% 
   finalize_workflow(parameters_tuned_ols_price_box)
 
-### price ----
+### Price ----
 finalized_workflow_ols_price <-
   workflow_ols_price %>% 
   finalize_workflow(parameters_tuned_ols_price)
-
 
 # LAST FIT ----
 
@@ -402,7 +409,7 @@ fit_xg_price_box <-
   finalized_workflow_xg_price_box %>% 
   last_fit(data_split)
 
-### price ----
+### Price ----
 fit_xg_price <-
   finalized_workflow_xg_price %>% 
   last_fit(data_split)
@@ -414,7 +421,7 @@ fit_ols_price_box <-
   finalized_workflow_ols_price_box %>% 
   last_fit(data_split)
 
-### price ----
+### Price ----
 fit_ols_price <-
   finalized_workflow_ols_price %>% 
   last_fit(data_split)
@@ -423,13 +430,13 @@ fit_ols_price <-
 
 ## Random Forest ----
 
-### Price with box ----
+### Price with BoxCox ----
 performance_rf_price_box <- 
   fit_rf_price_box %>% 
   collect_metrics() %>% 
   mutate(algorithm = "Random Forest for price with BoxCox")
 
-### price ----
+### Price ----
 performance_rf_price <- 
   fit_rf_price %>% 
   collect_metrics() %>% 
@@ -437,13 +444,13 @@ performance_rf_price <-
 
 ## XG Boost ----
 
-### Price with box ----
+### Price with BoxCox ----
 performance_xg_price_box <- 
   fit_xg_price_box %>% # for_performance(fit_xg) %>% 
   collect_metrics() %>%
   mutate(algorithm = "XG Boost for price with BoxCox")
 
-### price ----
+### Price ----
 performance_xg_price <- 
   fit_xg_price %>% # for_performance(fit_xg) %>% 
   collect_metrics() %>%
@@ -451,13 +458,13 @@ performance_xg_price <-
 
 ## Linear regression ----
 
-### Price with box ----
+### Price with BoxCox ----
 performance_ols_price_box <- 
   fit_ols_price_box %>% 
   collect_metrics() %>% 
   mutate(algorithm = "Linear regression for price with BoxCox")
 
-### price ----
+### Price ----
 performance_ols_price <- 
   fit_ols_price %>% 
   collect_metrics() %>% 
@@ -499,7 +506,7 @@ prediction_rf_price <-
 prediction_xg_price_box <-
   fit_xg_price_box %>%
   collect_predictions() %>%
-  mutate(algorithm = "XG Boost for price with boxcox") 
+  mutate(algorithm = "XG Boost for price with BoxCox") 
 
 ### Price ----
 prediction_xg_price <-
@@ -512,7 +519,7 @@ prediction_xg_price <-
 prediction_ols_price_box <- 
   fit_ols_price_box %>% 
   collect_predictions() %>%
-  mutate(algorithm = "Linear regression for price with boxcox")
+  mutate(algorithm = "Linear regression for price with BoxCox")
 
 ### Price ----
 prediction_ols_price <- 
@@ -552,7 +559,7 @@ rf_price_box_plot <-
               lty = 2) +
   labs(y = "Predicted Price of Airbnb",
        x = "Actual price of Airbnb",
-       title = "Predicting Airbnb price in NYC using RF with boxcox") + 
+       title = "Predicting Airbnb price in NYC using RF with BoxCox") + 
   theme_bw()
 
 ### Price ----
@@ -573,7 +580,7 @@ rf_price_plot <-
 
 ## XG Boost ----
 
-###Price with boxcox ----
+###Price with BoxCox ----
 
 xg_price_box_plot <- 
   prediction_xg_price_box %>% 
@@ -625,7 +632,6 @@ ols_price_box_plot <-
        title = "Predicting Airbnb price in NYC using OLS with BoxCox") + 
   theme_bw()
 
-
 ols_price_plot <- 
   prediction_ols_price %>% 
   select(.row, log10_price, .pred) %>%
@@ -656,17 +662,24 @@ library(vip)
 
 # VERY IMPORTANT ----
 finalized_model <- 
+  # finalized_workflow_rf_price %>% 
   finalized_workflow_xg_price %>% 
   fit(cleaned_data)
 
 finalized_model
 
-feature_importance_PREP <- 
+# feature_importance_PREP <- 
+#   rf_model %>% # your model
+#   finalize_model(select_best(tuned_rf_price)) %>% 
+#   set_engine("ranger",
+#              importance = "permutation")
+
+feature_importance_PREP <-
   XG_BOOST %>% # your model
   finalize_model(select_best(tuned_xg_price)
-  ) %>% 
+  ) %>%
   set_engine("xgboost",
-             importance = "permutation") 
+             importance = "permutation")
 
 feature_importance <- 
   workflow() %>% 
@@ -681,37 +694,51 @@ feature_importance <-
 feature_importance + 
   theme_bw()
 
+# SAVE FINAL MODEL ----
 finalized_model %>% saveRDS("finalized_model.rds")
 
+# SAVE RDATA ----
 save.image("project_airbnb.RData")
 
+view(data_train)
+skim(data_train)
 
 # SHINY APP ----
-model <- 
-  readRDS("/Users/janelle/Development/mgmt655/xg_upsample.rds")
+model_final <- 
+  readRDS("finalized_model.rds")
 
-model$pre$mold$predictors %>% 
+model_final$pre$mold$predictors %>% 
   colnames() %>% 
   as_tibble()
 
-model_rf <- 
-  readRDS("/Users/janelle/Development/mgmt655/rf_rose.rds")
+# test prediction
+predict(
+  model_final,
+  tibble(
+    # id = 1,
+    "latitude" = 40.71379,
+    "longitude" = -73.94207,
+    # calculated_host_listings_count = 1,
+    "neighbourhood_group" = 'Brooklyn',
+    "neighbourhood" = "Williamsburg",
+    "room_type" = "Private room",
+    "minimum_nights" = 1,
+    "number_of_reviews" = 1,
+    "reviews_per_month" = 1,
+    "availability_365" = 1
+  ))
 
-model_rf$pre$mold$predictors %>% 
-  colnames() %>% 
-  as_tibble()
-
-# User Interface ----
+## User Interface ----
 
 ui <- 
   dashboardPage(skin = "purple", # Page
-                dashboardHeader(title = "City Work/Life Balance Score Prediction App",
+                dashboardHeader(title = "Airbnb Price Prediction",
                                 titleWidth = 320), # Header
                 dashboardSidebar( # Sidebar
                   menuItem(
-                    "Work/Life Score Prediction App",
+                    "Airbnb Price Prediction App",
                     tabName = "score_tab",
-                    icon = icon("city")
+                    icon = icon("house")
                   )
                 ), 
                 dashboardBody(
@@ -720,64 +747,121 @@ ui <-
                     # Box containing the prediction results
                     box(valueBoxOutput("score_prediction") 
                     ),
-                    # Sliders
-                    box(sliderInput("vacations",
-                                    label = "Minimum Vacations Offered (Days)",
-                                    min = 0.00,
-                                    max = 30.00,
-                                    value = 10.00)
+                    # Dropdowns
+                    box(selectInput("neighbourhood_group",
+                                    label = "Neighbourhood Group",
+                                    choices = list("Brooklyn",
+                                                   "Manhattan",
+                                                   "Queens",
+                                                   "Staten Island")
+                                    )
                     ),
-                    box(sliderInput("unemployment",
-                                    label = "Unemployment",
-                                    min = 50.00,
-                                    max = 100.00,
-                                    value = 94.00)
+                    box(selectInput("neighbourhood",
+                                    label = "Neighbourhood",
+                                    choices = list("Bushwick",
+                                                   "Harlem",
+                                                   "Williamsburg",
+                                                   "Other")
+                                    )
+                    ),
+                    box(selectInput("room_type",
+                                    label = "Room Type",
+                                    choices = list("Private room",
+                                                   "Shared room",
+                                                   "Entire home/apt")
+                                    )
+                    ),
+                    # Sliders
+                    box(sliderInput("latitude",
+                                    label = "Latitude",
+                                    min = 40.50,
+                                    max = 40.92,
+                                    value = 40.72)
+                    ),
+                    box(sliderInput("longitude",
+                                    label = "Longitude",
+                                    min = -74.25,
+                                    max = -73.70,
+                                    value = -73.95)
+                    ),
+                    box(sliderInput("minimum_nights",
+                                    label = "Minimum Nights",
+                                    min = 0.00,
+                                    max = 1250.00,
+                                    value = 7.03)
+                    ),
+                    box(sliderInput("number_of_reviews",
+                                    label = "Number of Reviews",
+                                    min = 0.00,
+                                    max = 630.00,
+                                    value = 23.28)
+                    ),
+                    box(sliderInput("reviews_per_month",
+                                    label = "Reviews per Month",
+                                    min = 0.00,
+                                    max = 60.00,
+                                    value = 1.37)
+                    ),
+                    box(sliderInput("availability_365",
+                                    label = "Availability 365",
+                                    min = 0.00,
+                                    max = 365.00,
+                                    value = 114.88)
                     )
                   ) # Body
                 )
   )
 
-# Server ----
+## Server ----
 
 server <- function(input, output)
 {
   output$score_prediction <- 
     renderValueBox({
-      
       prediction <- 
-        predict(
-          model_rf,
-          tibble(
-            "age" = input$age,
-            "avg_glucose_level" = input$avg_glucose_level,
-            #"bmi" = input$bmi
-          )
+        predict(model_final,
+                tibble(
+                  # id = 1,
+                  "latitude" = input$latitude,
+                  "longitude" = input$longitude,
+                  # calculated_host_listings_count = 1,
+                  "neighbourhood_group" = input$neighbourhood_group,
+                  "neighbourhood" = input$neighbourhood,
+                  "room_type" = input$room_type,
+                  "minimum_nights" = input$minimum_nights,
+                  "number_of_reviews" = input$number_of_reviews,
+                  "reviews_per_month" = input$reviews_per_month,
+                  "availability_365" = input$availability_365
+                )
         )
       
-      prediction_prob <- 
+      prediction_price <- 
         predict(
-          model_rf,
+          model_final,
           tibble(
-            "vacations" = input_data$`Minimum Vacations Offered (Days)`,
-            "unemployment" = input_data$Unemployment,
+            # id = 1,
+            "latitude" = input$latitude,
+            "longitude" = input$longitude,
+            # calculated_host_listings_count = 1,
+            "neighbourhood_group" = input$neighbourhood_group,
+            "neighbourhood" = input$neighbourhood,
+            "room_type" = input$room_type,
+            "minimum_nights" = input$minimum_nights,
+            "number_of_reviews" = input$number_of_reviews,
+            "reviews_per_month" = input$reviews_per_month,
+            "availability_365" = input$availability_365
           ),
-          type = "prob"
-        ) %>% 
-        select(.pred_1)
+          type = "numeric") %>% 
+        select(.pred)
       
       prediction_statement <- 
-        if_else(prediction$.pred_class == "1", 
-                "Yes", "No")
-      
-      prediction_visual <- 
-        if_else(prediction$.pred_class == "1",
-                "red", "green")
+        prediction$.pred
       
       valueBox(
-        value = paste0(round(prediction_prob$.pred_1*100, 1), "%"),
-        subtitle = paste0("Will this individual have stroke? ",
-                          prediction_statement),
-        color = prediction_visual
+        value = paste0(round(10^(prediction_price), digits = 2), " USD"),
+        subtitle = paste0("Your predicted Airbnb price is: ",
+                          round(10^(prediction_price), digits = 2), " USD"),
+        color = "purple"
       )
       
     })
@@ -785,4 +869,6 @@ server <- function(input, output)
 
 # Run ----
 
+# app <- shinyApp(ui, server)
+# shiny::runApp(app, display.mode="showcase")
 shinyApp(ui, server)
