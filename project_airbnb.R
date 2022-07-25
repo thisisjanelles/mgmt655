@@ -13,8 +13,6 @@ pacman::p_load(tidyverse, lubridate,
 
 ## Read Dataset & Clean Data ----
 input_data <- read_csv("AB_NYC_2019.csv")
-skim(input_data)
-view(input_data)
 
 cleaned_data <- input_data %>% 
   filter(price != 0) %>%
@@ -25,11 +23,8 @@ cleaned_data <- input_data %>%
   mutate(log10_price = log10(price)) %>%
   select(-price) %>%
   drop_na()
-# %>% try without getting rid of the NAs
-# na.omit()
 
 skim(cleaned_data)
-view(cleaned_data)
 
 # RECIPE FOR EDA ----
 
@@ -39,7 +34,6 @@ recipe_eda <-
          data = cleaned_data) %>% 
   step_rm(id) %>%
   step_other(neighbourhood, threshold = 0.05) %>%
-  # step_impute_knn(reviews_per_month) %>%
   step_normalize(all_numeric_predictors()) %>%
   step_dummy(all_nominal_predictors())
 
@@ -47,17 +41,9 @@ recipe_eda <-
 baked_eda <- 
   recipe_eda %>% # plan 
   prep() %>% # for calculation
-  bake(cleaned_data) 
+  bake(cleaned_data)
 
 glimpse(baked_eda)
-
-## Baking for rank ----
-# baked_rank <-
-#   recipe_rank %>%
-#   prep() %>%
-#   bake(cleaned_data)
-
-# baked_rank
 
 # CORRELATION ----
 
@@ -109,7 +95,6 @@ recipe_price_box <-
   step_rm(id) %>%
   step_other(neighbourhood, threshold = 0.05) %>%
   step_BoxCox(calculated_host_listings_count) %>%
-  # step_impute_knn(reviews_per_month) %>%
   step_normalize(all_numeric_predictors()) %>% 
   step_dummy(all_nominal_predictors())
 
@@ -120,13 +105,9 @@ recipe_price <-
            room_type + minimum_nights + number_of_reviews + 
            reviews_per_month + availability_365,
          data = data_train) %>% 
-  # recipe(formula = `log10_price`~ .,
-  #        data = data_train) %>% 
-  # step_rm(id) %>%
   step_other(neighbourhood, threshold = 0.05) %>%
   step_novel(neighbourhood_group, neighbourhood, room_type) %>% 
   step_unknown(neighbourhood_group, neighbourhood, room_type) %>% 
-  # step_impute_knn(reviews_per_month) %>%
   step_normalize(all_numeric_predictors()) %>% 
   step_dummy(all_nominal_predictors())
 
@@ -136,7 +117,6 @@ baked_price_box <-
   recipe_price_box %>% # plan 
   prep() %>% # for calculation
   bake(data_train)
-  # bake(new_data = NULL)
 
 glimpse(baked_price_box)
 
@@ -145,7 +125,6 @@ baked_price <-
   recipe_price %>% # plan 
   prep() %>% # for calculation
   bake(data_train) 
-  # bake (new_data = NULL)
 
 glimpse(baked_price)
 
@@ -533,15 +512,9 @@ cleaned_data <-
   cleaned_data %>% 
   tibble::rowid_to_column(".row")
 
-data_test_with_row <- data_test %>%
+data_test_with_row <- 
+  data_test %>%
   rename(.row = id)
-
-# data_test_with_row %>% arrange(.row)
-# 
-# data_with_predictions <-
-#   data_test_with_row %>%
-#   inner_join(prediction_xg_price %>% select(.row, .pred),
-#     by = ".row")
 
 # CREATE PLOTS ----
 ## Random Forest ----
@@ -662,20 +635,11 @@ library(vip)
 
 # VERY IMPORTANT ----
 finalized_model <- 
-  # finalized_workflow_rf_price %>% 
   finalized_workflow_xg_price %>% 
   fit(cleaned_data)
 
-finalized_model
-
-# feature_importance_PREP <- 
-#   rf_model %>% # your model
-#   finalize_model(select_best(tuned_rf_price)) %>% 
-#   set_engine("ranger",
-#              importance = "permutation")
-
 feature_importance_PREP <-
-  XG_BOOST %>% # your model
+  XG_BOOST %>% # model
   finalize_model(select_best(tuned_xg_price)
   ) %>%
   set_engine("xgboost",
@@ -710,23 +674,6 @@ model_final <-
 model_final$pre$mold$predictors %>% 
   colnames() %>% 
   as_tibble()
-
-# test prediction
-predict(
-  model_final,
-  tibble(
-    # id = 1,
-    "latitude" = 40.71379,
-    "longitude" = -73.94207,
-    # calculated_host_listings_count = 1,
-    "neighbourhood_group" = 'Brooklyn',
-    "neighbourhood" = "Williamsburg",
-    "room_type" = "Private room",
-    "minimum_nights" = 1,
-    "number_of_reviews" = 1,
-    "reviews_per_month" = 1,
-    "availability_365" = 1
-  ))
 
 ## User Interface ----
 
@@ -821,10 +768,8 @@ server <- function(input, output)
       prediction <- 
         predict(model_final,
                 tibble(
-                  # id = 1,
                   "latitude" = input$latitude,
                   "longitude" = input$longitude,
-                  # calculated_host_listings_count = 1,
                   "neighbourhood_group" = input$neighbourhood_group,
                   "neighbourhood" = input$neighbourhood,
                   "room_type" = input$room_type,
@@ -839,10 +784,8 @@ server <- function(input, output)
         predict(
           model_final,
           tibble(
-            # id = 1,
             "latitude" = input$latitude,
             "longitude" = input$longitude,
-            # calculated_host_listings_count = 1,
             "neighbourhood_group" = input$neighbourhood_group,
             "neighbourhood" = input$neighbourhood,
             "room_type" = input$room_type,
@@ -869,6 +812,4 @@ server <- function(input, output)
 
 # Run ----
 
-# app <- shinyApp(ui, server)
-# shiny::runApp(app, display.mode="showcase")
 shinyApp(ui, server)
