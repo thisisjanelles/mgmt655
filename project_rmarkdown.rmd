@@ -46,13 +46,15 @@ code { color: rgb(205,79,57) }
 
 ## 1. Business Question
 
-> In Singapore, [stroke](https://www.straitstimes.com/singapore/how-do-i-prevent-stroke-and-what-should-i-look-out-for) is the fourth-most common cause of death and it is the leading cause of adult disability. Currently, [Singapore's stroke care system](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7399214/) focuses mainly on intervention and rehabilitation services for patients with onset of stroke symptoms. 
+> As a world's major cultural, financial and commercial hub, New York City attracts travellers from all over the world for personal and business trips. [The Average hotel prices per night in NYC](https://www.kayak.com/New-York-Hotels.15830.hotel.ksp) is USD282. [The average monthly room price in NYC](https://smartasset.com/mortgage/what-is-the-cost-of-living-in-new-york-city)
+ ranges from $3,295 to $6,191. NYC is by far [The most expensive in the nation, and nearly three times the national average of $1,463](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7399214/).This fact attracts many potential hosts to Airbnb.
 
-> While stroke mortality rate remains low, [stroke illiteracy](https://annals.edu.sg/pdf/43VolNo9Sep2014/MemberOnly/V43N9p454.pdf) rate remains high. As a result, even though people would seek immediate medical help if someone they knew someone had symptoms of stroke, studies have shown substantial delays in hospital presentation. The mean time of hospital arrival from stroke onset was over 20 hours with only [15% presenting within the time window for consideration for Thrombolysis (stroke treatment)](https://annals.edu.sg/pdf/43VolNo9Sep2014/MemberOnly/V43N9p454.pdf).  
+> Airbnb hosts face a major challenge while pricing the room rent for their properties. Renters have a number of filters to such as price, # of bedrooms, room type, and more, but ultimately the amount the host can charge is tied to market price. 
 
-> This gap between intention and actual behavior is striking because [preventive and early detection services](https://annals.edu.sg/pdf/43VolNo9Sep2014/MemberOnly/V43N9p454.pdf) such as individual stroke risk assessment and public education are largely limited and inaccessible to the masses. 
+> Airbnb provides help to hosts, but there is no easy access methods to determine the best price to rent out a space. Even the 3rd party apps are very expensive to use. Hosts can use some metric on historical averages but that come with its own issues such as dynamic markets leading to loss of opportunities. 
 
-> While unhealthly lifestyle results in a 66% increase in the risk of stroke, [80%](https://www.straitstimes.com/singapore/how-do-i-prevent-stroke-and-what-should-i-look-out-for) of cases are preventable through lifestyle modifications and early detection. Hence, the team sought to *use data science tools to execute predictive models* that uses patient's medical history and lifestyle data to predict chances of stroke.
+>Thus, in this project we aim to develop a model to predict the price of Airbnb room that a host can charge in New York City.
+
 
 ## 2. Import
 
@@ -1007,33 +1009,24 @@ save.image("Rmarkdown.RData")
 
 ## Limitations
 
-* This study applies to stroke only. 
+* This study applies to Airbnb prices in NYC only. 
 
-* The results derived from this predictive model only indicates whether a person is likely to be stroke-positive or stroke-negative. It does not provide stroke diagnosis. 
+* The results derived from this predictive model only indicates specific neighbor groups. It does not provide information about areas outside available neighbor groups in the data set. 
 
-* This model is easy and accessible for the public to use as it takes into account mainly lifestyle variables that are easily obtained. 
+* This model is easy and accessible to use by giving general idea of prices set by the owners. For outlier room types, this model would not fit.  
 
-* However, the data set lacks other potential bio makers that are more salient in predicting stroke cases. Hence, further data collection and consultation with medical professionals must be pursued before this model can be applied to test for stroke. 
+* However, the data set lacks other potential outside factors such as travel disruptions caused by COVID 19. Hence, further data collection and analysis if needed must be pursued before this model can be applied to test appropriate price range. 
+
 
 ## References
 
-* [Kaggle Data](https://www.kaggle.com/fedesoriano/stroke-prediction-dataset)
+* [Kaggle Data](https://www.kaggle.com/datasets/dgomonov/new-york-city-airbnb-open-data)
 
-* [Stroke cases in Singapore](https://www.straitstimes.com/singapore/8300-stroke-cases-admitted-to-public-hospitals-in-2018-public-outreach-campaign-starts)
+* [Average hotel prices per night in NYC](https://www.kayak.com/New-York-Hotels.15830.hotel.ksp)
 
-* [Stroke, how to prevent and what to look out for](https://www.straitstimes.com/singapore/how-do-i-prevent-stroke-and-what-should-i-look-out-for)
+* [The average monthly room price in NYC](https://smartasset.com/mortgage/what-is-the-cost-of-living-in-new-york-city)
 
-* [Singapore's stroke care system](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7399214/)
-
-* [Stroke illiteracy in Singapore](https://annals.edu.sg/pdf/43VolNo9Sep2014/MemberOnly/V43N9p454.pdf)
-
-* [Time window consideration for Thrombolysis](https://annals.edu.sg/pdf/43VolNo9Sep2014/MemberOnly/V43N9p454.pdf)
-
-* [Preventive and early detection services](https://annals.edu.sg/pdf/43VolNo9Sep2014/MemberOnly/V43N9p454.pdf)
-
-* [BMI interpretation](https://www.healthhub.sg/live-healthy/179/weight_putting_me_at_risk_of_health_problems)
-
-* [Hedges' g interpretation](https://www.statisticshowto.com/hedges-g/)
+* [The most expensive room price compared by the national average](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7399214/)
 
 ## Appendix
 
@@ -1043,42 +1036,50 @@ save.image("Rmarkdown.RData")
 
 > The `pRoject` team put together by Prof. Roh (randomly) worked together to deliver the assignment. Together we defined the problem, identifed the data source and segregated tasks to deliver the final output.
 
-  ***R-script** was led by `Teammate A`
+   ***R-script** was led by `Sanath Manjunath Nadig`
 
-  ***Shiny-dashboard** was led by `Teammate B`
+  ***Shiny-dashboard** was led by `Janelle Ashley SY`
 
-  ***R-markdown** was led by `Teammate A & B`
+  ***R-markdown** was led by `Kushal Agarwal, Suel Ki Park`
 
-> `Teammate A's` contributions:
+> `Sanath Manjunath Nadig's` contributions:
 
-1)	Collaborated with teammate to formulate the business problem. 
+1)	Collaborated with team to develop the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
 
-2)  Conducted research to discover interaction between variables.
+2) Collaborated to test and find the best recipe and model with rmse.
+
+3) Conducted research to discover interaction between variables.
   
-2)	Created and developed the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
+4) Analyzed data to identify top variables that impact market price of Airbnb in NYC.
   
-3)	Analyzed data to identify top variables that impact stroke.
-  
-4)	Designed recipes and tested to find the best model with highest roc_auc/accuracy score.
-  
-5)	Finalized the models and tested model on Dashboard. 
-  
-6)	Partnered with teammate to draft the Executive summary – Evidence, Interpretation and Recommendations.
-  
-7)	Created the pitch deck for the proposal and submit.
-  
->  `Teammate B's` contributions:
+>  `Kushal Agarwal's` contributions:
 
 1) Collaborated with team to develop the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
 
-2) Collaborated to test and find the best recipe and model with highest roc_auc score.
-
-3)  Debugged error messages preventing successful deployment of R-dashboard .
+2) Collaborated with teammate to formulate the business problem.
   
-4)  Updated the dashboard according to our features to create the Stroke Prediction App.
- 
-5)  Partnered with team to draft the Rmarkdown file.
+3)  Partnered with team to draft the Rmarkdown file.
 
-6)  Helped in writing the Executive Summary – Evidence, Interpretation and Recommendations.
+4)  Helped in writing the Executive Summary – Evidence, Interpretation and Recommendations.
+
+>  `Janelle Ashley SY` contributions:
+
+1) Collaborated with team to develop the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
+
+2)  Partnered with team for successful deployment of R-dashboard .
+  
+3)  Updated the dashboard according to our results to create the Pricing Airbnb Prediction App.
+ 
+4)	Finalized the models and tested model on Dashboard. 
+
+>  `Suel Ki Park's` contributions:
+
+1) Collaborated with team to develop the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
+
+2)  Collaborated with teammate to formulate the business problem.
+ 
+3)  Partnered with team to draft the Rmarkdown file.
+
+4)  Helped in writing the Executive Summary – Evidence, Interpretation and Recommendations.
 
 <br>
