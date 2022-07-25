@@ -23,13 +23,12 @@ cleaned_data <- input_data %>%
                   neighbourhood), as.factor)) %>%
   mutate(log10_price = log10(price)) %>%
   select(-price) # %>%
-           # %>% try without getting rid of the NAs
-  # na.omit()
+# %>% try without getting rid of the NAs
+# na.omit()
 
 #Check
 skim(cleaned_data)
 view(cleaned_data)
-
 
 # RECIPE FOR EDA----
 
@@ -76,24 +75,6 @@ corr_table <- baked_eda %>%
 
 corr_table
 
-# Feature Engineering ----
-
-cleaned_data %>% 
-  ggplot(aes(x = `Inclusivity & Tolerance`, y = `TOTAL SCORE`)) +
-  geom_point(color = "dodgerblue",
-             alpha = 0.3) +
-  geom_smooth(method = "loess",
-              formula = y ~ x,
-              se = F,
-              color = "purple") +
-  geom_smooth(method = "lm",
-              formula = y ~ x,
-              se = F,
-              color = "green") +
-  geom_smooth(method = "lm",
-              formula = y ~ poly(x, degree = 2),
-              color = "tomato3") +
-  theme_bw()
 
 # SPLITTING ----
 
@@ -111,6 +92,10 @@ data_train <- # training(rent_split)
   data_split %>% 
   training() # 80%
 
+#TESTINNGGGG ----
+data_train <- data_train %>%
+  sample_n(5000)
+
 data_test <- 
   data_split %>% 
   testing() # 20%
@@ -127,13 +112,34 @@ recipe_price_box <-
   step_normalize(all_numeric_predictors()) %>% 
   step_dummy(all_nominal_predictors())
 
+## Recipe for price without BoxCox inputs ----
+recipe_price <- 
+  recipe(formula = `log10_price`~ .,
+         data = data_train) %>% 
+  step_rm(id) %>%
+  step_other(neighbourhood, threshold = 0.05) %>%
+  step_impute_knn(reviews_per_month) %>%
+  # step_impute_knn(`Vacations Taken (Days)`) %>%
+  step_normalize(all_numeric_predictors()) %>% 
+  step_dummy(all_nominal_predictors())
 
+# BAKING ----
+## Baking for price with box cox ----
 baked_price_box <- 
   recipe_price_box %>% # plan 
   prep() %>% # for calculation
   bake(data_train) 
 
 glimpse(baked_price_box)
+
+
+## Baking for price without box cox ----
+baked_price <- 
+  recipe_price %>% # plan 
+  prep() %>% # for calculation
+  bake(data_train) 
+
+glimpse(baked_price)
 
 # CREATE MODELS ----
 ## Random Forest ----
@@ -172,16 +178,35 @@ workflow_rf_price_box <-
   add_recipe(recipe_price_box) %>% 
   add_model(rf_model)
 
+## Random Forest with price----
+workflow_rf_price <-
+  workflow() %>% 
+  add_recipe(recipe_price) %>% 
+  add_model(rf_model)
+
 ## XG Boost for price with box ----
 workflow_xg_price_box <- 
   workflow() %>% 
   add_recipe(recipe_price_box) %>% 
   add_model(XG_BOOST)
 
+
+## XG Boost with price ----
+workflow_xg_price <- 
+  workflow() %>% 
+  add_recipe(recipe_price) %>% 
+  add_model(XG_BOOST)
+
 ## Linear regression for price with box ----
 workflow_ols_price_box <- 
   workflow() %>% 
   add_recipe(recipe_price_box) %>% 
+  add_model(ols_model)
+
+## Linear regression with price ----
+workflow_ols_price <- 
+  workflow() %>% 
+  add_recipe(recipe_price) %>% 
   add_model(ols_model)
 
 # CROSS VALIDATION ----
@@ -226,6 +251,12 @@ tuned_rf_price_box <-
   tune_grid(resamples = cv_rf,
             grid = 3:10)
 
+### Price ----
+tuned_rf_price <-
+  workflow_rf_price %>% 
+  tune_grid(resamples = cv_rf,
+            grid = 3:10)
+
 ## XG Boost tuning ----
 
 set.seed(22201702)
@@ -253,10 +284,24 @@ tuned_xg_price_box <-
             control = control_grid(save_pred = T)
   )
 
+### Price ----
+tuned_xg_price <- 
+  workflow_xg_price %>% 
+  tune_grid(resamples = cv_xg,
+            grid = grid_xg,
+            control = control_grid(save_pred = T)
+  )
+
 ## OLS Tuning ----
 ### Price with box ----
 tuned_ols_price_box <-
   workflow_ols_price_box %>%
+  tune_grid(resamples = cv_ols,
+            grid = 3:10)
+
+### price withouty boxcox ----
+tuned_ols_price <-
+  workflow_ols_price %>%
   tune_grid(resamples = cv_ols,
             grid = 3:10)
 
@@ -270,11 +315,21 @@ parameters_tuned_rf_price_box <-
   tuned_rf_price_box %>% 
   select_best(metric = "rmse")
 
+### price ----
+parameters_tuned_rf_price <- 
+  tuned_rf_price %>% 
+  select_best(metric = "rmse")
+
 ## XG Boost parameters ----
 
-### Price with box ----
+### Price with boxcox ----
 parameters_tuned_xg_price_box <-
   tuned_xg_price_box %>%
+  select_best(metric = "rmse")
+
+### price ----
+parameters_tuned_xg_price <-
+  tuned_xg_price %>%
   select_best(metric = "rmse")
 
 ## Linear regression parameters ----
@@ -284,6 +339,10 @@ parameters_tuned_ols_price_box <-
   tuned_ols_price_box %>% 
   select_best(metric = "rmse")
 
+### price ----
+parameters_tuned_ols_price <- 
+  tuned_ols_price %>% 
+  select_best(metric = "rmse")
 
 # FINALIZE WORKFLOW ----
 
@@ -294,6 +353,11 @@ finalized_workflow_rf_price_box <-
   workflow_rf_price_box %>% 
   finalize_workflow(parameters_tuned_rf_price_box)
 
+### price ----
+finalized_workflow_rf_price <-
+  workflow_rf_price %>% 
+  finalize_workflow(parameters_tuned_rf_price)
+
 ## XG Boost ----
 
 ### Price with box ----
@@ -301,12 +365,23 @@ finalized_workflow_xg_price_box <-
   workflow_xg_price_box %>% 
   finalize_workflow(parameters_tuned_xg_price_box)
 
+### price ----
+finalized_workflow_xg_price <- 
+  workflow_xg_price %>% 
+  finalize_workflow(parameters_tuned_xg_price)
+
 ## Linear regression ----
 
 ### Price with box ----
 finalized_workflow_ols_price_box <-
   workflow_ols_price_box %>% 
   finalize_workflow(parameters_tuned_ols_price_box)
+
+### price ----
+finalized_workflow_ols_price <-
+  workflow_ols_price %>% 
+  finalize_workflow(parameters_tuned_ols_price)
+
 
 # LAST FIT ----
 
@@ -317,6 +392,11 @@ fit_rf_price_box <-
   finalized_workflow_rf_price_box %>% 
   last_fit(data_split)
 
+### Price ----
+fit_rf_price <-
+  finalized_workflow_rf_price %>% 
+  last_fit(data_split)
+
 ## XG Boost ----
 
 ### Price with box ----
@@ -324,11 +404,21 @@ fit_xg_price_box <-
   finalized_workflow_xg_price_box %>% 
   last_fit(data_split)
 
+### price ----
+fit_xg_price <-
+  finalized_workflow_xg_price %>% 
+  last_fit(data_split)
+
 ## Linear regression ----
 
 ### Price with box ----
 fit_ols_price_box <-
   finalized_workflow_ols_price_box %>% 
+  last_fit(data_split)
+
+### price ----
+fit_ols_price <-
+  finalized_workflow_ols_price %>% 
   last_fit(data_split)
 
 # PERFORMANCE ----
@@ -341,6 +431,12 @@ performance_rf_price_box <-
   collect_metrics() %>% 
   mutate(algorithm = "Random Forest for price with BoxCox")
 
+### price ----
+performance_rf_price <- 
+  fit_rf_price %>% 
+  collect_metrics() %>% 
+  mutate(algorithm = "Random Forest for price")
+
 ## XG Boost ----
 
 ### Price with box ----
@@ -348,6 +444,12 @@ performance_xg_price_box <-
   fit_xg_price_box %>% # for_performance(fit_xg) %>% 
   collect_metrics() %>%
   mutate(algorithm = "XG Boost for price with BoxCox")
+
+### price ----
+performance_xg_price <- 
+  fit_xg_price %>% # for_performance(fit_xg) %>% 
+  collect_metrics() %>%
+  mutate(algorithm = "XG Boost for price")
 
 ## Linear regression ----
 
@@ -357,11 +459,20 @@ performance_ols_price_box <-
   collect_metrics() %>% 
   mutate(algorithm = "Linear regression for price with BoxCox")
 
+### price ----
+performance_ols_price <- 
+  fit_ols_price %>% 
+  collect_metrics() %>% 
+  mutate(algorithm = "Linear regression for price")
+
 # COMPARE PERFORMANCE OF DIFFERENT ALGORITHMS AND RECIPES ----
 
 bind_rows(performance_rf_price_box,
+          performance_rf_price,
           performance_xg_price_box,
-          performance_ols_price_box) %>%
+          performance_xg_price,
+          performance_ols_price_box, 
+          performance_ols_price) %>%
   select(-.estimator,
          -.config) %>% 
   pivot_wider(names_from = .metric,
@@ -373,42 +484,43 @@ bind_rows(performance_rf_price_box,
 
 # CHECK PREDICTIONS ----
 ## Random Forest ----
-### Score ----
-prediction_rf_score <- 
-  fit_rf_score %>% 
+### Price with BoxCox ----
+prediction_rf_price_box <- 
+  fit_rf_price_box %>% 
+  collect_predictions() %>%
+  mutate(algorithm = "Random Forest for price with BoxCox")
+
+### Price ----
+prediction_rf_price <- 
+  fit_rf_price %>% 
   collect_predictions() %>%
   mutate(algorithm = "Random Forest for price")
-### Rank ----
-prediction_rf_score_nc <- 
-  fit_rf_score_nc %>% 
-  collect_predictions() %>%
-  mutate(algorithm = "Random Forest for rank")
 
 ## XG Boost ----
-### Score ----
-prediction_xg_score <-
-  fit_xg_score %>%
+### Price with BoxCox ----
+prediction_xg_price_box <-
+  fit_xg_price_box %>%
   collect_predictions() %>%
-  mutate(algorithm = "XG Boost for price") 
+  mutate(algorithm = "XG Boost for price with boxcox") 
 
-### Rank ----
-prediction_xg_score_nc <-
-  fit_xg_score_nc %>%
+### Price ----
+prediction_xg_price <-
+  fit_xg_price %>%
   collect_predictions() %>%
-  mutate(algorithm = "XG Boost for rank")
+  mutate(algorithm = "XG Boost for price")
 
 ## Linear regression ----
-### Score ----
-prediction_ols_score <- 
-  fit_ols_score %>% 
+### Price with BoxCox ----
+prediction_ols_price_box <- 
+  fit_ols_price_box %>% 
+  collect_predictions() %>%
+  mutate(algorithm = "Linear regression for price with boxcox")
+
+### Price ----
+prediction_ols_price <- 
+  fit_ols_price %>% 
   collect_predictions() %>%
   mutate(algorithm = "Linear regression for price")
-
-### Rank ----
-prediction_ols_score_nc <- 
-  fit_ols_score_nc %>% 
-  collect_predictions() %>%
-  mutate(algorithm = "Linear regression for rank")
 
 # CONSOLIDATE PREDICTIONS ----
 
@@ -417,23 +529,21 @@ cleaned_data <-
   tibble::rowid_to_column(".row")
 
 data_test_with_row <- data_test %>%
-  rename(.row = rowid)
+  rename(.row = id)
 
-data_with_predictions <-
-  data_test_with_row %>%
-  inner_join(#prediction_rf_score %>% select(.row, .pred),
-    # prediction_rf_rank %>% select(.row, .pred),
-    # prediction_xg_score %>% select(.row, .pred),
-    # prediction_xg_rank %>% select(.row, .pred),
-    prediction_ols_score %>% select(.row, .pred),
-    # prediction_ols_rank %>% select(.row, .pred),
-    by = ".row")
-
-# TODO: Create a data frame comparing the outputs of all models with the original output.
+# data_test_with_row %>% arrange(.row)
+# 
+# data_with_predictions <-
+#   data_test_with_row %>%
+#   inner_join(prediction_xg_price %>% select(.row, .pred),
+#     by = ".row")
 
 # CREATE PLOTS ----
-rf_score_plot <- 
-  prediction_rf_score %>% 
+## Random Forest ----
+
+### Price with BoxCox ----
+rf_price_box_plot <- 
+  prediction_rf_price_box %>% 
   select(.row, log10_price, .pred)%>%
   ggplot(aes(x = log10_price,
              y = .pred)
@@ -442,28 +552,14 @@ rf_score_plot <-
              alpha = 0.50) + 
   geom_abline(color = "red",
               lty = 2) +
-  labs(y = "Predicted score of city",
-       x = "Actual score of city",
-       title = "Predicting city work-life balance score using RF") + 
+  labs(y = "Predicted Price of Airbnb",
+       x = "Actual price of Airbnb",
+       title = "Predicting Airbnb price in NYC using RF with boxcox") + 
   theme_bw()
 
-rf_rank_plot <- 
-  prediction_rf_score_nc %>% 
-  select(.row, `TOTAL SCORE`, .pred) %>%
-  ggplot(aes(x = `TOTAL SCORE`,
-             y = .pred)
-  ) + 
-  geom_point(color = "dodgerblue",
-             alpha = 0.50) + 
-  geom_abline(color = "red",
-              lty = 2) +
-  labs(y = "Predicted rank of city",
-       x = "Actual rank of city",
-       title = "Predicting city work-life balance rank using RF") + 
-  theme_bw()
-
-xg_score_plot <- 
-  prediction_xg_score %>% 
+### Price ----
+rf_price_plot <- 
+  prediction_rf_price %>% 
   select(.row, log10_price, .pred) %>%
   ggplot(aes(x = log10_price,
              y = .pred)
@@ -472,32 +568,17 @@ xg_score_plot <-
              alpha = 0.50) + 
   geom_abline(color = "red",
               lty = 2) +
-  labs(y = "Predicted score of city",
-       x = "Actual score of city",
-       title = "Predicting city work-life balance score using XG") + 
+  labs(y = "Predicted Price of Airbnb",
+       x = "Actual price of Airbnb",
+       title = "Predicting Airbnb price in NYC using RF") + 
   theme_bw()
 
-xg_rank_plot <- 
-  prediction_rf_score_nc %>% 
-  select(.row, `TOTAL SCORE`, .pred) %>%
-  ggplot(aes(x = `TOTAL SCORE`,
-             y = .pred)
-  ) + 
-  geom_point(color = "dodgerblue",
-             alpha = 0.50) + 
-  geom_abline(color = "red",
-              lty = 2) +
-  labs(y = "Predicted rank of city",
-       x = "Actual rank of city",
-       title = "Predicting city work-life balance rank using XG") + 
-  theme_bw()
+## XG Boost ----
 
-# grid.arrange(rf_score_plot, rf_rank_plot, 
-#              xg_score_plot, xg_rank_plot,
-#              ncol = 2)
+###Price with boxcox ----
 
-ols_score_plot <- 
-  prediction_ols_score %>% 
+xg_price_box_plot <- 
+  prediction_xg_price_box %>% 
   select(.row, log10_price, .pred) %>%
   ggplot(aes(x = log10_price,
              y = .pred)
@@ -506,34 +587,105 @@ ols_score_plot <-
              alpha = 0.50) + 
   geom_abline(color = "red",
               lty = 2) +
-  labs(y = "Predicted score of city",
-       x = "Actual score of city",
-       title = "Predicting city work-life balance score using OLS") + 
+  labs(y = "Predicted Price of Airbnb",
+       x = "Actual price of Airbnb",
+       title = "Predicting Airbnb price in NYC using XG with BoxCox") + 
   theme_bw()
 
-
-ols_rank_plot <- 
-  prediction_ols_score_nc %>% 
-  select(.row, `TOTAL SCORE`, .pred) %>%
-  ggplot(aes(x = `TOTAL SCORE`,
+### Price ----
+xg_price_plot <- 
+  prediction_rf_price %>% 
+  select(.row, log10_price, .pred) %>%
+  ggplot(aes(x = log10_price,
              y = .pred)
   ) + 
   geom_point(color = "dodgerblue",
              alpha = 0.50) + 
   geom_abline(color = "red",
               lty = 2) +
-  labs(y = "Predicted rank of city",
-       x = "Actual rank of city",
-       title = "Predicting city work-life balance rank using OLS") + 
+  labs(y = "Predicted Price of Airbnb",
+       x = "Actual price of Airbnb",
+       title = "Predicting Airbnb price in NYC using XG") + 
   theme_bw()
 
-grid.arrange(rf_score_plot, 
-             xg_score_plot,
-             ols_score_plot,
-             ncol = 1)
+## OLS ----
 
-# Results??
+### Price with BoxCox ----
 
+ols_price_box_plot <- 
+  prediction_ols_price_box %>% 
+  select(.row, log10_price, .pred) %>%
+  ggplot(aes(x = log10_price,
+             y = .pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted Price of Airbnb",
+       x = "Actual price of Airbnb",
+       title = "Predicting Airbnb price in NYC using OLS with BoxCox") + 
+  theme_bw()
+
+
+ols_price_plot <- 
+  prediction_ols_price %>% 
+  select(.row, log10_price, .pred) %>%
+  ggplot(aes(x = log10_price,
+             y = .pred)
+  ) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.50) + 
+  geom_abline(color = "red",
+              lty = 2) +
+  labs(y = "Predicted Price of Airbnb",
+       x = "Actual price of Airbnb",
+       title = "Predicting Airbnb price in NYC using OLS") + 
+  theme_bw()
+
+grid.arrange(rf_price_box_plot,
+             rf_price_plot,
+             xg_price_box_plot,
+             xg_price_plot,
+             ols_price_box_plot,
+             ols_price_plot,
+             ncol = 2)
+
+# FINALIZED MODEL ----
+## Feature Importance ----
+
+library(vip)
+
+# VERY IMPORTANT ----
+finalized_model <- 
+  finalized_workflow_xg_price %>% 
+  fit(cleaned_data)
+
+finalized_model
+
+feature_importance_PREP <- 
+  XG_BOOST %>% # your model
+  finalize_model(select_best(tuned_xg_price)
+  ) %>% 
+  set_engine("xgboost",
+             importance = "permutation") 
+
+feature_importance <- 
+  workflow() %>% 
+  add_recipe(recipe_price) %>% 
+  add_model(feature_importance_PREP) %>% 
+  fit(data_train) %>% 
+  extract_fit_parsnip() %>% # pull_workflow_fit()
+  vip(aesthetic = list(fill = "deepskyblue2",
+                       alpha = 0.50)
+  ) 
+
+feature_importance + 
+  theme_bw()
+
+finalized_model %>% saveRDS("finalized_model.rds")
+
+save.image("project_airbnb.RData")
 
 
 # SHINY APP ----
