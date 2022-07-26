@@ -927,61 +927,6 @@ data_test_with_row <-
   rename(.row = id)
 ```
 
-> Confusion Matrix
-
-```{r}
-CM_builder_for_MGMT655 <- 
-  function(data, outcome)
-{ 
-  {data} %>% 
-    conf_mat({outcome}, .pred_class) %>% 
-    pluck(1) %>% 
-    as_tibble() %>% 
-    mutate(cm_colors = ifelse(Truth == "1" & Prediction == "1", "True Positive",
-                              ifelse(Truth == "1" & Prediction == "0", "False Negative",
-                                     ifelse(Truth == "0" & Prediction == "1", 
-                                            "False Positive", 
-                                            "True Negative")
-                              )
-    )
-    ) %>% 
-    ggplot(aes(x = Prediction, y = Truth)) + 
-    geom_tile(aes(fill = cm_colors), show.legend = F) +
-    scale_fill_manual(values = c("True Positive" = "green",
-                                 "False Negative" = "red",
-                                 "False Positive" = "red",
-                                 "True Negative" = "green")
-    ) + 
-    geom_text(aes(label = n), color = "white", size = 10) + 
-    geom_label(aes(label = cm_colors), vjust = 2
-    ) + 
-    theme_fivethirtyeight() + 
-    theme(axis.title = element_text()
-    ) 
-}
-```
-
-```{r}
-CM_builder_for_MGMT655(prediction_XG, "stroke")
-```
-
-> Null Model
-
-```{r}
-model_baseline <- null_model() %>% 
-  set_engine("parsnip") %>% 
-  set_mode("classification")
-
-workflow_baseline <- workflow() %>% 
-  add_recipe(reciped_1) %>% 
-  add_model(model_baseline) %>% 
-  fit_resamples(cv10,
-                control = control_resamples(save_pred = T))
-
-performance_baseline <- workflow_baseline %>% collect_metrics()
-prediction_baseline <- workflow_baseline %>% collect_predictions()
-```
-
 > Model Plots
 
 ```{r}
