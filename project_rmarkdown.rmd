@@ -1,7 +1,7 @@
 ---
 title: "Predicting Airbnb Prices in New York City"
 subtitle: "Data Science Project for MGMT 655 Business Analytics for Decision Making"
-author: "Kushal AGARWAL, Janelle Ashley SY, PARK Suel Ki, Sanath Manjunath NADIG"
+author: "Sanath Manjunath NADIG, Janelle Ashley SY, Kushal AGARWAL, PARK Suel Ki"
 date: "26 July 2022"
 output:
   html_document:
@@ -53,8 +53,7 @@ code { color: rgb(205,79,57) }
 
 > Airbnb provides help to hosts, but there is no easy access methods to determine the best price to rent out a space. Even the 3rd party apps are very expensive to use. Hosts can use some metric on historical averages but that come with its own issues such as dynamic markets leading to loss of opportunities. 
 
->Thus, in this project we aim to develop a model to predict the price of Airbnb room that a host can charge in New York City.
-
+> Thus, in this project we aim to develop a model to predict the price of Airbnb room that a host can charge in New York City.
 
 ## 2. Import
 
@@ -80,7 +79,7 @@ Variable (Feature) Name           | Description
 name                              | Airbnb listing name
 host_name                         | Airbnb host name
 neighbourhood_group               | "Manhattan", "Brooklyn", "Queens", "Bronx", or "Staten Island"
-neighbourhood                     | 
+neighbourhood                     | Neighbourhood of the Airbnb (out of 218 possible neighbourhoods)
 latitude                          | Airbnb latitude coordinates
 longitude                         | Airbnb longitude coordinates
 room_type                         | "Entire home/apt", "Private room", or "Shared room"
@@ -124,35 +123,17 @@ cleaned_data <- input_data %>%
 skim(cleaned_data)
 ```
 
-### 3.1 Uni-variate Analysis {.tabset}
+### 3.1 Variable Analysis {.tabset}
 
 > Key demographic variables are analysed to determine the characteristics of Airbnb listings in the sample. 
 
-#### 3.1.1 Log10Price
-
-> 
-
-```{r Price}
-ggthemr("fresh")
-
-cleaned_data %>%
-  ggplot() +
-  geom_density(aes(x = log10_price)) +
-  geom_vline(aes(xintercept = mean(log10_price)),
-             linetype = "dashed",
-             color = "tomato3") +
-  annotate(geom = "text",
-           color = "tomato3") +
-  labs(title = "Log Price per Night of Airbnbs in New York City",
-       y = "Density",
-       x = "Price in USD")
-```
-
-#### 3.1.2 Neighbourhood Group
+#### 3.1.1 Neighbourhood Group
 
 > The majority of Airbnb listings are located in Brooklyn, Manhattan, and Queens. Minimally occurring values will need to be pooled into an "Other" category.
 
 ```{r Neighbourhood Group}
+ggthemr("fresh")
+
 cleaned_data %>%
   ggplot(aes(neighbourhood_group)) +
   geom_bar(aes(y = (..count..)/sum(..count..))) +
@@ -167,210 +148,153 @@ cleaned_data %>%
        y = "Percentage")
 ```
 
-#### 3.1.3 Number of Reviews
+#### 3.1.2 Average Price VS Neighbourhood Group
 
-> 
-
-```{r Number of Reviews}
+```{r Average Price VS Neighbourhood Group}
 cleaned_data %>%
-  ggplot() +
-  geom_density(aes(x = number_of_reviews)) +
-  geom_vline(aes(xintercept = mean(number_of_reviews)),
-             linetype = "dashed",
-             color = "tomato3") +
-  annotate(geom = "text",
-           color = "tomato3") +
-  labs(title = "Number of Reviews on an Airbnb Listing",
-       x = "Number of Reviews",
-       y = "")
+  group_by(neighbourhood_group) %>%
+  summarise(avg_price = mean(log10_price)) %>%
+  mutate(avg_price = 10^avg_price) %>%
+  ggplot(aes(x = neighbourhood_group, y = avg_price)) +
+  geom_bar(stat = "identity", show.legend = F) +
+  scale_y_continuous(labels = dollar) +
+  geom_label(aes(label = round(avg_price, digits = 2),
+                 y = avg_price, 
+                 stat = "count",
+                 size = 5,
+                 fill = "white")) +
+  labs(title = "Average price of Airbnb Listings by Neighborhood Group",
+       x = "Neighborhood Group",
+       y = "Average Price")
+theme_bw
 ```
 
-<!-- #### 3.1.4 Glucose Level  -->
+#### 3.1.3 Average Price VS Room Type
 
-<!-- > Average glucose level = 106.15. Sample is in the normal range.  -->
-
-<!-- ```{r Glucose Level Distribution} -->
-<!-- strokedataset %>% -->
-<!--   ggplot() + -->
-<!--   geom_density(aes(x = avg_glucose_level)) + -->
-<!--   geom_vline(aes(xintercept = mean(avg_glucose_level)), -->
-<!--              linetype = "dashed", -->
-<!--              color = "tomato3") + -->
-<!--   annotate(geom = "text", -->
-<!--            label = "Mean = 106.15", -->
-<!--            color = "tomato3", -->
-<!--            x = 135,  -->
-<!--            y = 0.013) + -->
-<!--   labs(title = "Avg Glucose Level Distribution of Patients", -->
-<!--        y = "Density", -->
-<!--        x = "Average Glucose Level") -->
-
-<!-- summary(strokedataset$avg_glucose_level) -->
-<!-- ``` -->
-<!-- ### {-} -->
-
-### 3.2 Multi-variate Analysis {.tabset}
-
-> The effect size of each quantitative variable is evaluated against stroke to determine variables with the largest effect. As for categorical variables, because data is imbalanced, proportion is used to analyse data between independent variables and stroke. 
-
-> [Hedges' g interpretation](https://www.statisticshowto.com/hedges-g/): Small effect (0.2). Medium Effect (0.5). Large effect (0.8)
-
-#### 3.2.1 Hypertension
-
-> Comparing relative percentage, there is a higher proportion of stroke cases amongst patients who have hypertension (27%) as compared to those without (9%).
-
-```{r Hypertension}
-strokedataset %>%
-  mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
-  ggplot(aes(hypertension, group = stroke)) +
-  geom_bar(aes
-           (y = ..prop.., 
-             fill = factor(..x..)), 
-           stat = "count", 
-           show.legend = FALSE) +
-  geom_label(aes(label = percent(..prop..),
-                y = ..prop..), 
-            stat = "count",
-            size = 5,
-            fill = "white") +
-  labs(title = "Proportion of Patients With Hypertension",
-       x = "Hypertension", 
-       y = "Percentage", 
-       fill = "hypertension") +
-  facet_grid(~stroke) +
-  scale_y_continuous(labels = percent) +
-  scale_x_discrete(labels = c("0" = "No", "1" = "Yes"))
-```
-#### 3.2.2 Heart Disease
-
-> Similarly, there is a higher proportion of stroke cases amongst patients who have heart disease (19%) as compared to those without (5%).
-
-```{r Heart Disease}
-strokedataset %>%
-  mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
-  ggplot(aes(heart_disease, group = stroke)) +
-  geom_bar(aes
-           (y = ..prop.., 
-             fill = factor(..x..)), 
-           stat = "count", 
-           show.legend = FALSE) +
-  geom_label(aes(label = percent(..prop..),
-                y = ..prop..), 
-            stat = "count",
-            size = 5,
-            fill = "white") +
-  labs(title = "Proportion of Patients With Heart Disease",
-       x = "Heart Disease", 
-       y = "Percentage", 
-       fill = "heart_disease") +
-  facet_grid(~stroke) +
-  scale_y_continuous(labels = percent) +
-  scale_x_discrete(labels = c("0" = "No", "1" = "Yes"))
+```{r Average Price VS Room Type}
+cleaned_data %>%
+  group_by(room_type) %>%
+  summarise(avg_price = mean(log10_price)) %>%
+  mutate(avg_price = 10^avg_price) %>%
+  ggplot(aes(x = room_type, y = avg_price)) +
+  geom_bar(stat = "identity", show.legend = F) +
+  scale_y_continuous(labels = dollar) +
+  geom_label(aes(label = round(avg_price, digits = 2),
+                 y = avg_price, 
+                 stat = "count")) +
+  labs(title = "Average price of Airbnb Listings by Room type",
+       x = "Room Type",
+       y = "Average Price")
+theme_bw()
 ```
 
-#### 3.2.3 Smoking Status
+#### 3.1.4 Longitude VS log10Price
 
-> There is a higher proportion of stroke cases amongst patients who formerly smoke (28.11%).
-
-```{r Smoke}
-strokedataset %>%
-  mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
-  ggplot(aes(smoking_status, group = stroke)) +
-  geom_bar(aes
-           (y = ..prop.., 
-             fill = factor(..x..)), 
-           stat = "count", 
-           show.legend = FALSE) +
-  geom_label(aes(label = percent(..prop..),
-                y = ..prop..), 
-            stat = "count",
-            nudge_y = -0.06,
-            size = 5,
-            fill = "white") +
-   labs(title = "Patient's Smoking Status By Proportion",
-       x = "Smoking Status", 
-       y = "Percentage", 
-       fill = "smoking_status") +
-  facet_grid(~stroke) +
-  scale_y_continuous(labels = percent) +
-  scale_x_discrete(labels = function(x) str_wrap(x , width = 10)) +
-  coord_flip()
+```{r Longitude VS log10Price}
+cleaned_data %>%
+  ggplot(aes(x = longitude, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
 ```
 
-#### 3.2.4 Gender
+#### 3.1.5 Latitude VS log10Price
 
-> There is a relatively similar proportion of patients with stroke across male and females. There is only 1 respondent who identified as "other".
-
-```{r}
-strokedataset %>%
-  count(gender)
-
-strokedataset_1 <- strokedataset[strokedataset$gender !="Other",]
+```{r Latitude VS log10Price}
+cleaned_data %>%
+  ggplot(aes(x = latitude, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
 ```
 
-```{r Gender}
-strokedataset_1 %>%
-  mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
-  ggplot(aes(gender, group = stroke)) +
-  geom_bar(aes
-           (y = ..prop.., 
-             fill = factor(..x..)), 
-           stat = "count", 
-           show.legend = FALSE) +
-  geom_label(aes(label = percent(..prop..),
-                y = ..prop..), 
-            stat = "count",
-            size = 5,
-            fill = "white") +
-  labs(title = "Patients with and without stroke by gender",
-       x = "Gender", 
-       y = "Percentage", 
-       fill = "gender") +
-  facet_grid(~stroke) +
-  scale_y_continuous(labels = percent)
+#### 3.1.6 Number of Reviews VS log10 Price
+
+```{r Number of Reviews VS log10 Price}
+cleaned_data %>%
+  ggplot(aes(x = number_of_reviews, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
 ```
 
-#### 3.2.5 BMI & Stroke
+#### 3.1.7 Host Listings Count VS log10Price
 
-> Patients with stroke have higher average BMI, but effect size is small. 
-
-```{r BMI effect size}
-strokedataset %>% 
-  mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
-  ggbetweenstats(
-    x = stroke,
-    y = bmi,
-    plot.type = "box")
+```{r Host Listings Count VS log10Price}
+cleaned_data %>%
+  ggplot(aes(x = calculated_host_listings_count, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
 ```
 
-#### 3.2.6 Glucose level
+#### 3.1.8 Availability_365 VS log10Price
 
-> Effect size is small for females but medium for males. Patients with stroke have higher average glucose level. Male stroke patients saw a higher average glucose level than female stroke patients. 
-
-```{r Avg Glucose Level Effect Size Across Gender}
-strokedataset_1 %>%
-  mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
-  grouped_ggbetweenstats(
-    x = stroke,
-    y = avg_glucose_level,
-    grouping.var = gender,
-    plot.type = "box")
+```{r Availability_365 VS log10Price}
+cleaned_data %>%
+  ggplot(aes(x = availability_365, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
 ```
+### {-}
 
-#### 3.2.7 Age & Stroke
-
-> Effect size is large. Patients who have stroke are mostly older than patients who have no stroke. 
-
-```{r Age}
-strokedataset %>% 
-  mutate(stroke = recode(stroke, "1" = "Stroke", "0" = "No Stroke")) %>%
-  ggbetweenstats(
-    x = stroke,
-    y = age,
-    plot.type = "box")
-```
-
-### 3.3 Correlation Study {.tabset}
+### 3.2 Correlation Study {.tabset}
 
 > Prep and bake.
 
@@ -398,9 +322,13 @@ glimpse(baked_eda)
 
 > Neighbourhood Group and Room Type appears to have the highest strength in relationship with stroke (>0.1 corr).
 
-#### 3.3.1 Correlation Matrix
+#### 3.2.1 Correlation Matrix
 
 ```{r Correlation Matrix}
+# CORRELATION ----
+
+## Correlation score ----
+
 corr_table <- baked_eda %>% 
   as.matrix(.) %>%
   rcorr(.) %>%
@@ -411,22 +339,22 @@ corr_table <- baked_eda %>%
   mutate(absCORR = abs(CORR)) %>%
   filter(var1 == "log10_price" | var2 == "log10_price") %>%
   DT::datatable()
+
+corr_table
 ```
 ### {-}
 
 ## 4. Predictive Model
 
-> Four predictive models were derived. Model A includes all variables, while Model B focuses on variables with effect sizes and correlation (age, ever_married, avg_glucose_level, heart_disease and hypertension). 
+> Three predictive models were derived. The modes of each of these models was set to Regression.
 
-> Model C is derived based on a refinement of both Model A and B based on variable importance, while Model XG seeks to improve on the best model. 
-
-> Because sample data is highly imbalanced (due to natural rare occurrence of stroke), the sample data was tested using step_upsample, step_downsample and step_rose.
+> Model 1 is based on Random Forest, Model 2 is based on XG Boost while Model 3 is a simple Original Least Squares (OLS) regression model.
 
 ### 4.1. Split
 
 > Preparation
 
-```{r}
+```{r Splitting}
 # SPLITTING ----
 
 set.seed(22062801)
@@ -440,28 +368,27 @@ data_split
 
 > Execution
 
-```{r}
+```{r Training and Testing Sets}
 ## Create Training and Testing Sets ----
 
 data_train <- # training(rent_split)
   data_split %>% 
   training() # 80%
 
-# TESTING ----
-# Create Smaller Set to Save on Run Time
-data_train <- data_train %>%
-  sample_n(5000)
-
 data_test <- 
   data_split %>% 
   testing() # 20%
 ```
 
-### 4.2. Pre-Process
+### 4.2. Pre-Process: Feature Engineering
 
-> Feature Engineering
+> Based on the observations of feature engineering, two recipes were created. In both recipes, the log10_price variable was used as the output variable. Since the dataset contained a lot of neighbourhoods, all neighbourhoods that represented less than 5% of total data were classified as 'Other' neighbourhoods.
 
-```{r}
+> In recipe 1, log10_price was expressed as a function of all other variables remaining after cleaning the data. The variable 'calculated_host_listings_count' was subjected to a BoxCox transformation using the step_BoxCox function.
+
+> In recipe 2, log10_price was expressed as a function of certain variables chosen depending on their importance observed through the correlation matrix. This recipe did not contain the variable that was subjected to BoxCox transformation.
+
+```{r Feature Engineering}
 # RECIPE FOR PREDICTION ----
 ## Recipe 1: Price with BoxCox inputs ----
 recipe_price_box <- 
@@ -506,7 +433,7 @@ glimpse(baked_price)
 
 ### 4.3. Fit
 
-```{r}
+```{r Fit}
 # CREATE MODELS ----
 ## Random Forest ----
 
@@ -540,7 +467,7 @@ ols_model <- linear_reg() %>%
 
 > Using `workflows::``workflow()`
 
-```{r}
+```{r Tune}
 # CREATE WORKFLOWS ----
 
 ## Random Forest for price with BoxCox ----
@@ -582,7 +509,7 @@ workflow_ols_price <-
 
 > Cross-validation (cv)
 
-```{r}
+```{r Cross Validation}
 # CROSS VALIDATION ----
 
 ## Cross validation for Random Forest ----
@@ -591,8 +518,6 @@ set.seed(22062802)
 cv_rf <- 
   data_train %>% 
   vfold_cv(v = 10)
-
-cv_rf
 
 ## Cross validation for XG BOOST ----
 
@@ -604,21 +529,17 @@ cv_xg <-
   vfold_cv(v = 10,
            strata = log10_price) # output variable
 
-cv_xg
-
 ## Cross validation for Linear regression ----
 set.seed(22062802)
 
 cv_ols <- 
   data_train %>% 
   vfold_cv(v = 10)
-
-cv_ols
 ```
 
-> Parallel Processing (for Expedited/speedy Modeling)
+> Parallel Processing (for expedited/speedy modeling)
 
-```{r}
+```{r Parallel Processing}
 doParallel::registerDoParallel()
 
 # TUNING ----
@@ -726,7 +647,7 @@ parameters_tuned_ols_price <-
 ```
 
 
-```{r}
+```{r Finalize Workflow}
 # FINALIZE WORKFLOW ----
 
 ## Random Forest ----
@@ -768,7 +689,7 @@ finalized_workflow_ols_price <-
 
 ### 4.5. Assess
 
-```{r}
+```{r Assess}
 # LAST FIT ----
 
 ## Random Forest ----
@@ -808,9 +729,9 @@ fit_ols_price <-
   last_fit(data_split)
 ```
 
-> Model Performance 
+> Model Performance
 
-```{r Comparing 6 models}
+```{r Comparing models}
 # PERFORMANCE ----
 
 ## Random Forest ----
@@ -875,7 +796,7 @@ bind_rows(performance_rf_price_box,
 
 > Collect predictions
 
-```{r}
+```{r Predictions}
 # CHECK PREDICTIONS ----
 ## Random Forest ----
 ### Price with BoxCox ----
@@ -929,7 +850,7 @@ data_test_with_row <-
 
 > Model Plots
 
-```{r}
+```{r Model Plots}
 # CREATE PLOTS ----
 ## Random Forest ----
 
@@ -1045,7 +966,7 @@ grid.arrange(rf_price_box_plot,
 
 > Feature Importance
 
-```{r}
+```{r Feature Importance}
 # FINALIZED MODEL ----
 ## Feature Importance ----
 
@@ -1079,13 +1000,13 @@ feature_importance +
 
 > Deploy Machine Learning Algorithm to Dashboard
 
-```{r}
+```{r Deploy}
 finalized_model %>% saveRDS("finalized_model.rds")
 ```
 
 > Save R Data 
 
-```{r}
+```{r RData}
 save.image("project_airbnb.RData")
 ```
 
@@ -1093,43 +1014,38 @@ save.image("project_airbnb.RData")
 
 ### 5.1. Evidence
 
-* We tested 6 models for this predictive modeling task.
+* Based on initial examination, we removed 4 variables as they did not have an impact on the prediction model, namely, **name**, **host_name**, **host_id**, **last_review**.
 
-* Our first model`Random Forest ALgorithm A` up-sampled the minority class (non-stroke) and included all variables, excluding ID. 
+* Based on the observations of feature engineering, two recipes were created. In both recipes, the log10_price variable was used as the output variable. Since the dataset contained a lot of neighbourhoods, all neighbourhoods that represented less than 5% of total data were classified as 'Other' neighbourhoods.
 
-* Based on our correlation analysis of all variables, **age**, **heart disease**, **average glucose level**, **hypertension** and **marriage** had the strongest impact on stroke. 
+* In recipe 1, log10_price was expressed as a function of all other variables remaining after cleaning the data. The variable 'calculated_host_listings_count' was subjected to a BoxCox transformation using the step_BoxCox function.
 
-* Hence, the second model `Random Forest Algorithm B` focused on these 5 variables. An interaction between average glucose level, hypertension and heart disease was also factored into the recipe. 
+* In recipe 2, log10_price was expressed as a function of certain variables chosen depending on their importance observed through the correlation matrix. This recipe did not contain the variable that was subjected to BoxCox transformation.
 
-* Based on variable importance graph, the variables "smoking_status" and "bmi" was included into `Random Forest Algorithm C` in an attempt to improve overall performance. 
+* The above 2 recipes, combined with the 3 different models, gave us 6 model-recipe algorithm combinations.
 
-* Based on `Random Forest Algorithm B`, we attempted to use the same variables with the computation method of XG Boost to improve the model performance.
+* Upon comparing the different models, we observed that `XG Boost Algorithm` without the recipe containing the BoxCox transformation exhibited the least RMS Error at **0.18** and R² value at **0.62**.
 
-* Of the 4 models, the fourth model `XG Boost Algorithm` performed better with higher roc_auc of **0.86** and higher accuracy of **0.90**, compared to the other three models.
-
-* The top three variables that had the highest importance on the prediction results are **age**, followed by **hypertension** and **heart disease**.
+*  When we observe the feature importance for this model, we see the following result: **Room type** is the most important feature when it comes to determining the price of an Airbnb listing. 
 
 ### 5.2. Interpretation
 
-* `XG Boost Algorithm` performed better overall with a roc_auc of **0.86** and accuracy of **0.90**, giving a 10% chance of error. 
+* Based on the above plots and the table portraying the performance metrics of different model-recipe combinations, we have chosen the XG Boost model with the recipe without BoxCox transformation as our final model. 
 
-* The model focused on the top 5 variables that have the largest effect on stroke based on the feature importance graph, and the relationship between average glucose level to hypertension and heart disease. 
+* `XG Boost Algorithm` performed better overall with a rmse of **0.18** and R squared of **0.62**.
 
-* This implies the significance of focusing on the most important features during the predictive modelling task, and also research on interaction between variables to achieve optimal performance.
-
-* In terms of variable importance, the top 3 variables are age, heart disease and hypertension. The effect size of these variables means `higher level of age, exisiting conditions of hypertension or heart disease` increases the chances of stroke detected. 
+* **Room types** and **neighborhood_group** play important roles in determining the price per night of Airbnb in NYC.
 
 ### 5.3. Recommendations
 
-* The key use application for this predictive model is in determining whether a person is likely to be diagnosed with stroke based on their lifestyle and health measurements. Hence, the key stakeholders whom would most benefit from this predictive model are `(1) general practitioners`, `(2) patients and family members` and `(3) the public`. 
+* The key use application for this predictive model is in determining the room price of an airbnb based on the factors such as area, room type, reviews, and minimum nights. 
+Hence, the key stakeholders whom would most benefit from this predictive model are `(1) Airbnb hosts`, `(2) Airbnb Company` and `(3) the public`. 
 
-* This algorithm takes into account the 5 most important variables to produce a evidence-based prediction of the likelihood that a patient has stroke. For `general practitioners`, this predictive model is a useful data tool that can be used in conjunction with qualitative checks conducted based on their expertise. This would help them make **more accurate diagnosis** and recommend patients for further test (i.e. CT scan) and treatments. 
+* This algorithm takes into account several variables to produce a evidence-based prediction of the prices of Airbnb in NYC. For `Airbnb hosts`, this predictive model is a useful data tool that can be used in conjunction with qualitative checks conducted based on their expertise. This would help them make **more informative decision regarding the price**.
 
-* In addition, this predictive model to **stratify patients into risk groups**. Without this tool, patients would belong to either stroke-positive or stroke-negative groups. However, with this predictive model that produces **quantitative likelihood of getting stroke**, general practitioners can derive a better understanding of the risk levels of a patient getting stroke (e.g. >50%) and thereby conduct necessary checks and provide pertinent advice on lifestyle plans to mitigate the onset of stroke.
+* One of the drivers for this predictive model study was the [average price of Airbnb by city](https://www.alltherooms.com/analytics/average-airbnb-prices-by-city/) leading to competitive price, which could have been improved through identifying the drivers so that hosts in NYC can efficiently price.
 
-* One of the drivers for this predictive model study was the [sharp rise in stroke cases in Singapore](https://www.straitstimes.com/singapore/8300-stroke-cases-admitted-to-public-hospitals-in-2018-public-outreach-campaign-starts) leading to health implications, which could have been avoided through early detection, so that lifestyle modifications and treatment can be provided.
-
-* Hence, it is recommended that this prediction model be **made openly available to public to access and input their lifestyle factors and health measurements** to arrive at a predicted percentage likelihood of being stroke-positive. Singaporeans with higher likelihood of stroke (due to family history of stroke risk factors or lifestyle conditions) could also use this model to understand the risks so that they can make informed decisions on their next steps.
+* Hence, it is recommended that this prediction model be **made openly available to potential Airbnb hosts to input their available factors for guidance** to arrive at a predicted price range of Airbnb in NYC. The current Airbnb hosts who want to attract more renters could also use this model to understand their positions so that they can make informed decisions.
 
 ## Limitations
 
@@ -1141,6 +1057,7 @@ save.image("project_airbnb.RData")
 
 * However, the data set lacks other potential outside factors such as travel disruptions caused by COVID 19. Hence, further data collection and analysis if needed must be pursued before this model can be applied to test appropriate price range. 
 
+* **Disclaimer**: Building the model with the original R script showed that XG Boost without BoxCox had the best performance with the lowest rmse and highest R squared values. However, the R markdown file seemed to sometimes render different results and show other models having better performance. Given the inconsistency in performance values, the team decided to stick with the original model that was used to generate the submitted RDS file and build the ShinyApp.
 
 ## References
 
@@ -1152,6 +1069,8 @@ save.image("project_airbnb.RData")
 
 * [The most expensive room price compared by the national average](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7399214/)
 
+* [average price of Airbnb by city](https://www.alltherooms.com/analytics/average-airbnb-prices-by-city/)
+
 ## Appendix
 
 * Nil.
@@ -1160,11 +1079,11 @@ save.image("project_airbnb.RData")
 
 > The `pRoject` team worked together to deliver the assignment. Together we defined the problem, identifed the data source and segregated tasks to deliver the final output.
 
-   ***R-script** was led by `Sanath Manjunath Nadig`
+  * **R-script** was led by `Sanath Manjunath Nadig`
 
-  ***Shiny-dashboard** was led by `Janelle Ashley SY`
+  * **Shiny-dashboard** was led by `Janelle Ashley SY`
 
-  ***R-markdown** was led by `Kushal Agarwal, Suel Ki Park`
+  * **R-markdown** was led by `Kushal Agarwal, Suel Ki Park`
 
 > `Sanath Manjunath Nadig's` contributions:
 
@@ -1175,6 +1094,20 @@ save.image("project_airbnb.RData")
 3) Conducted research to discover interaction between variables.
   
 4) Analyzed data to identify top variables that impact market price of Airbnb in NYC.
+
+5) Created visualizations and graphs for analyzing the data and variables.
+
+>  `Janelle Ashley SY` contributions:
+
+1) Collaborated with team to develop the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
+
+2) Partnered with team for successful deployment of R-dashboard and debugged error messages preventing successful deployment 
+
+3) Updated the dashboard according to our features to create the Airbnb Prediction App.
+
+4) Partnered with team to draft the Rmarkdown file.
+ 
+5) Finalized the models, tested model on Dashboard, added information to Rmarkdown file. 
   
 >  `Kushal Agarwal's` contributions:
 
@@ -1182,28 +1115,18 @@ save.image("project_airbnb.RData")
 
 2) Collaborated with teammate to formulate the business problem.
   
-3)  Partnered with team to draft the Rmarkdown file.
+3) Partnered with team to draft the Rmarkdown file.
 
-4)  Helped in writing the Executive Summary – Evidence, Interpretation and Recommendations.
-
->  `Janelle Ashley SY` contributions:
-
-1) Collaborated with team to develop the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
-
-2)  Partnered with team for successful deployment of R-dashboard .
-  
-3)  Updated the dashboard according to our results to create the Pricing Airbnb Prediction App.
- 
-4)	Finalized the models, tested model on Dashboard, added information to Rmarkdown file. 
+4) Helped in writing the Executive Summary – Evidence, Interpretation and Recommendations.
 
 >  `Suel Ki Park's` contributions:
 
 1) Collaborated with team to develop the R-script – Transform & EDA, Split, Pre-process, Fit, Tune and Assess.
 
-2)  Collaborated with teammate to formulate the business problem.
+2) Collaborated with teammate to formulate the business problem.
  
-3)  Partnered with team to draft the Rmarkdown file.
+3) Partnered with team to draft the Rmarkdown file.
 
-4)  Helped in writing the Executive Summary – Evidence, Interpretation and Recommendations.
+4) Helped in writing the Executive Summary – Evidence, Interpretation and Recommendations.
 
 <br>
