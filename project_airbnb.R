@@ -28,24 +28,11 @@ cleaned_data <- input_data %>%
 
 skim(cleaned_data)
 
-# UNIVARIATE ANALYSIS ----
-
-## Price ----
-ggthemr("fresh")
-
-cleaned_data %>%
-  ggplot() +
-  geom_density(aes(x = log10_price)) +
-  geom_vline(aes(xintercept = mean(log10_price)),
-             linetype = "dashed",
-             color = "tomato3") +
-  annotate(geom = "text",
-           color = "tomato3") +
-  labs(title = "Log Price per Night of Airbnbs in New York City",
-       y = "Density",
-       x = "Price in USD")
+# VARIABLE ANALYSIS ----
 
 ## Neighbourhood Group ----
+ggthemr("fresh")
+
 cleaned_data %>%
   ggplot(aes(neighbourhood_group)) +
   geom_bar(aes(y = (..count..)/sum(..count..))) +
@@ -59,18 +46,129 @@ cleaned_data %>%
        x = "Neighborhood Group",
        y = "Percentage")
 
-## Number of Reviews ----
+## Average Price VS Neighbourhood Group ----
 cleaned_data %>%
-  ggplot() +
-  geom_density(aes(x = number_of_reviews)) +
-  geom_vline(aes(xintercept = mean(number_of_reviews)),
-             linetype = "dashed",
-             color = "tomato3") +
-  annotate(geom = "text",
-           color = "tomato3") +
-  labs(title = "Number of Reviews on an Airbnb Listing",
-       x = "Number of Reviews",
-       y = "")
+  group_by(neighbourhood_group) %>%
+  summarise(avg_price = mean(log10_price)) %>%
+  mutate(avg_price = 10^avg_price) %>%
+  ggplot(aes(x = neighbourhood_group, y = avg_price)) +
+  geom_bar(stat = "identity", show.legend = F) +
+  scale_y_continuous(labels = dollar) +
+  geom_label(aes(label = round(avg_price, digits = 2),
+                 y = avg_price, 
+                 stat = "count",
+                 size = 5,
+                 fill = "white")) +
+  labs(title = "Average price of Airbnb Listings by Neighborhood Group",
+       x = "Neighborhood Group",
+       y = "Average Price")
+theme_bw
+
+## Average Price VS Room Type ----
+cleaned_data %>%
+  group_by(room_type) %>%
+  summarise(avg_price = mean(log10_price)) %>%
+  mutate(avg_price = 10^avg_price) %>%
+  ggplot(aes(x = room_type, y = avg_price)) +
+  geom_bar(stat = "identity", show.legend = F) +
+  scale_y_continuous(labels = dollar) +
+  geom_label(aes(label = round(avg_price, digits = 2),
+                 y = avg_price, 
+                 stat = "count")) +
+  labs(title = "Average price of Airbnb Listings by Room type",
+       x = "Room Type",
+       y = "Average Price")
+theme_bw()
+
+## Longitude VS log10Price ----
+cleaned_data %>%
+  ggplot(aes(x = longitude, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
+
+## Latitude vs log10Price ----
+cleaned_data %>%
+  ggplot(aes(x = latitude, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
+
+## Number of Reviews VS log10 Price ----
+cleaned_data %>%
+  ggplot(aes(x = number_of_reviews, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
+
+## Host Listings Count VS log10Price ----
+cleaned_data %>%
+  ggplot(aes(x = calculated_host_listings_count, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
+
+## Availability_365 VS log10Price
+cleaned_data %>%
+  ggplot(aes(x = availability_365, y = log10_price)) + 
+  geom_point(color = "dodgerblue",
+             alpha = 0.3) +
+  geom_smooth(method = "loess",
+              formula = y ~ x,
+              se = F,
+              color = "purple") +
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = F,
+              color = "green") +
+  geom_smooth(method = "lm",
+              formula = y ~ poly(x, degree = 2),
+              color = "tomato3") +
+  theme_bw()
 
 # RECIPE FOR EDA ----
 
@@ -125,7 +223,7 @@ data_train <- # training(rent_split)
   training() # 80%
 
 # TESTING ----
-# Create Smaller Set to Save on Run Time
+
 data_train <- data_train %>%
   sample_n(5000)
 
@@ -709,155 +807,3 @@ finalized_model %>% saveRDS("finalized_model.rds")
 
 # SAVE RDATA ----
 save.image("project_airbnb.RData")
-
-view(data_train)
-skim(data_train)
-
-# SHINY APP ----
-model_final <- 
-  readRDS("finalized_model.rds")
-
-model_final$pre$mold$predictors %>% 
-  colnames() %>% 
-  as_tibble()
-
-# Get list of neighbourhoods
-neighbourhood_list <- 
-  unique(c(cleaned_data$neighbourhood))
-
-## User Interface ----
-
-ui <- 
-  dashboardPage(skin = "purple", # Page
-                dashboardHeader(title = "Airbnb Price Prediction",
-                                titleWidth = 320), # Header
-                dashboardSidebar( # Sidebar
-                  menuItem(
-                    "Airbnb Price Prediction App",
-                    tabName = "score_tab",
-                    icon = icon("house")
-                  )
-                ), 
-                dashboardBody(
-                  tabItem(
-                    tabName = "score_tab",
-                    # Box containing the prediction results
-                    box(valueBoxOutput("score_prediction") 
-                    ),
-                    # Dropdowns
-                    box(selectInput("neighbourhood_group",
-                                    label = "Neighbourhood Group",
-                                    choices = list("Brooklyn",
-                                                   "Manhattan",
-                                                   "Queens",
-                                                   "Staten Island",
-                                                   "Bronx")
-                                    )
-                    ),
-                    box(selectInput("neighbourhood",
-                                    label = "Neighbourhood",
-                                    choices = neighbourhood_list
-                                    )
-                    ),
-                    box(selectInput("room_type",
-                                    label = "Room Type",
-                                    choices = list("Private room",
-                                                   "Shared room",
-                                                   "Entire home/apt")
-                                    )
-                    ),
-                    # Sliders
-                    box(sliderInput("latitude",
-                                    label = "Latitude",
-                                    min = 40.50,
-                                    max = 40.92,
-                                    value = 40.72)
-                    ),
-                    box(sliderInput("longitude",
-                                    label = "Longitude",
-                                    min = -74.25,
-                                    max = -73.70,
-                                    value = -73.95)
-                    ),
-                    box(sliderInput("minimum_nights",
-                                    label = "Minimum Nights",
-                                    min = 1.00,
-                                    max = 1250.00,
-                                    value = 7.03)
-                    ),
-                    box(sliderInput("number_of_reviews",
-                                    label = "Number of Reviews",
-                                    min = 1.00,
-                                    max = 629.00,
-                                    value = 23.28)
-                    ),
-                    box(sliderInput("reviews_per_month",
-                                    label = "Reviews per Month",
-                                    min = 0.01,
-                                    max = 58.50,
-                                    value = 1.37)
-                    ),
-                    box(sliderInput("availability_365",
-                                    label = "Availability 365",
-                                    min = 0.00,
-                                    max = 365.00,
-                                    value = 114.88)
-                    )
-                  ) # Body
-                )
-  )
-
-## Server ----
-
-server <- function(input, output)
-{
-  output$score_prediction <- 
-    renderValueBox({
-      prediction <- 
-        predict(model_final,
-                tibble(
-                  "latitude" = input$latitude,
-                  "longitude" = input$longitude,
-                  "neighbourhood_group" = input$neighbourhood_group,
-                  "neighbourhood" = input$neighbourhood,
-                  "room_type" = input$room_type,
-                  "minimum_nights" = input$minimum_nights,
-                  "number_of_reviews" = input$number_of_reviews,
-                  "reviews_per_month" = input$reviews_per_month,
-                  "availability_365" = input$availability_365
-                )
-        )
-      
-      prediction_price <- 
-        predict(
-          model_final,
-          tibble(
-            "latitude" = input$latitude,
-            "longitude" = input$longitude,
-            "neighbourhood_group" = input$neighbourhood_group,
-            "neighbourhood" = input$neighbourhood,
-            "room_type" = input$room_type,
-            "minimum_nights" = input$minimum_nights,
-            "number_of_reviews" = input$number_of_reviews,
-            "reviews_per_month" = input$reviews_per_month,
-            "availability_365" = input$availability_365
-          ),
-          type = "numeric") %>% 
-        select(.pred)
-      
-      prediction_statement <- 
-        prediction$.pred
-      
-      valueBox(
-        value = paste0(round(10^(prediction_price), digits = 2), " USD"),
-        subtitle = paste0("Your predicted Airbnb price is: ",
-                          round(10^(prediction_price), digits = 2), " USD"),
-        color = "purple"
-      )
-      
-    })
-}
-
-# Run ----
-
-shinyApp(ui, server)
